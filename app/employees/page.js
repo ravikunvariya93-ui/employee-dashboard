@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 
@@ -52,11 +52,11 @@ export default function EmployeesPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const debouncedFetch = useCallback(debounce(fetchData, 400), [fetchData]);
+  const debouncedFetch = useMemo(() => debounce(fetchData, 400), [fetchData]);
 
   useEffect(() => {
     debouncedFetch({ page, search, taluka, salaryType, payLevel, retirementWithin, sort, order });
-  }, [page, search, taluka, salaryType, payLevel, retirementWithin, sort, order]);
+  }, [page, search, taluka, salaryType, payLevel, retirementWithin, sort, order, debouncedFetch]);
 
   const handleSort = (col) => {
     if (sort === col) {

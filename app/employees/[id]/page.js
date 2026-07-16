@@ -457,7 +457,7 @@ export default function EmployeeDetailPage() {
                   <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
                     <div>Submitted by: <strong>{proposal.submitted_by}</strong></div>
                     {proposal.approved_by && <div style={{ marginTop: '0.15rem' }}>Sanctioned by: <strong>{proposal.approved_by}</strong></div>}
-                    {proposal.remarks && <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.4rem', background: 'var(--bg-primary)', borderRadius: '4px' }}>Remarks: "{proposal.remarks}"</div>}
+                    {proposal.remarks && <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.4rem', background: 'var(--bg-primary)', borderRadius: '4px' }}>Remarks: &quot;{proposal.remarks}&quot;</div>}
                   </div>
 
                   {proposal.status === 'Pending' && role === 'Approver' && (
