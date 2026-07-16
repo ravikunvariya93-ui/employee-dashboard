@@ -1,0 +1,144 @@
+import sql from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+// Self-healing & migration: check columns and recreate table if old schema
+async function ensureTableExists() {
+  try {
+    // Check if the new column benefit_type exists
+    await sql.query(`SELECT benefit_type FROM proposals LIMIT 1`);
+  } catch (err) {
+    console.log('Migrating proposals table to include Pension detailed fields...');
+    await sql.query(`DROP TABLE IF EXISTS proposals`);
+  }
+
+  await sql.query(`
+    CREATE TABLE IF NOT EXISTS proposals (
+      id SERIAL PRIMARY KEY,
+      teacher_id INTEGER,
+      teacher_name TEXT,
+      teacher_code BIGINT,
+      submitted_by TEXT,
+      approved_by TEXT,
+      status TEXT DEFAULT 'Pending', -- 'Pending', 'Approved', 'Rejected'
+      benefit_type TEXT DEFAULT 'Pension', -- 'Pension', 'Gratuity', 'PF', etc.
+      
+      -- Service & Salary inputs
+      qualifying_service INTEGER,
+      last_basic_pay NUMERIC,
+      average_emoluments NUMERIC,
+      
+      -- Pension details
+      pension NUMERIC,
+      family_pension NUMERIC,
+      commutation_percent NUMERIC DEFAULT 0,
+      commuted_value NUMERIC DEFAULT 0,
+      reduced_pension NUMERIC,
+      
+      -- Bank details
+      bank_name TEXT,
+      bank_account TEXT,
+      ifsc_code TEXT,
+      
+      remarks TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+export async function GET(request) {
+  try {
+    await ensureTableExists();
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status') || '';
+    const teacher_id = searchParams.get('teacher_id') || '';
+
+    let queryStr = `SELECT * FROM proposals`;
+    let params = [];
+    let conditions = [];
+
+    if (status) {
+      conditions.push(`status = $${params.length + 1}`);
+      params.push(status);
+    }
+    if (teacher_id) {
+      conditions.push(`teacher_id = $${params.length + 1}`);
+      params.push(parseInt(teacher_id));
+    }
+
+    if (conditions.length > 0) {
+      queryStr += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    queryStr += ` ORDER BY id DESC`;
+
+    const rows = await sql.query(queryStr, params);
+    return NextResponse.json({ success: true, data: rows });
+  } catch (error) {
+    console.error('Proposals GET error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request) {
+  try {
+    await ensureTableExists();
+    const body = await request.json();
+    const {
+      teacher_id,
+      teacher_name,
+      teacher_code,
+      submitted_by,
+      benefit_type,
+      qualifying_service,
+      last_basic_pay,
+      average_emoluments,
+      pension,
+      family_pension,
+      commutation_percent,
+      commuted_value,
+      reduced_pension,
+      bank_name,
+      bank_account,
+      ifsc_code,
+      remarks
+    } = body;
+
+    if (!teacher_id || !teacher_name) {
+      return NextResponse.json({ success: false, error: 'Teacher details are required' }, { status: 400 });
+    }
+
+    const result = await sql.query(`
+      INSERT INTO proposals (
+        teacher_id, teacher_name, teacher_code, submitted_by, benefit_type,
+        qualifying_service, last_basic_pay, average_emoluments,
+        pension, family_pension, commutation_percent, commuted_value, reduced_pension,
+        bank_name, bank_account, ifsc_code, remarks
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      RETURNING *
+    `, [
+      teacher_id,
+      teacher_name,
+      teacher_code ? parseInt(teacher_code) : null,
+      submitted_by || 'Clerk',
+      benefit_type || 'Pension',
+      qualifying_service ? parseInt(qualifying_service) : 0,
+      last_basic_pay ? parseFloat(last_basic_pay) : 0,
+      average_emoluments ? parseFloat(average_emoluments) : 0,
+      pension ? parseFloat(pension) : 0,
+      family_pension ? parseFloat(family_pension) : 0,
+      commutation_percent ? parseFloat(commutation_percent) : 0,
+      commuted_value ? parseFloat(commuted_value) : 0,
+      reduced_pension ? parseFloat(reduced_pension) : 0,
+      bank_name || '',
+      bank_account || '',
+      ifsc_code || '',
+      remarks || ''
+    ]);
+
+    return NextResponse.json({ success: true, data: result[0] });
+  } catch (error) {
+    console.error('Proposals POST error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

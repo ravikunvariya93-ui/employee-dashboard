@@ -53,6 +53,9 @@ export async function GET() {
     });
   } catch (error) {
     console.error('Stats error:', error);
+    if (error.message.includes('relation "teachers" does not exist')) {
+      return NextResponse.json({ error: 'Database is not seeded yet. Please click the Data Import page to seed the data.' });
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

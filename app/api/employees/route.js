@@ -10,6 +10,7 @@ export async function GET(request) {
   const salary_type = searchParams.get('salary_type') || '';
   const designation = searchParams.get('designation') || '';
   const pay_level = searchParams.get('pay_level') || '';
+  const retirement_within = searchParams.get('retirement_within') || '';
   const sort = searchParams.get('sort') || 'id';
   const order = searchParams.get('order') || 'asc';
   const offset = (page - 1) * limit;
@@ -52,6 +53,12 @@ export async function GET(request) {
       params.push(pay_level.trim());
       paramIdx++;
     }
+    if (retirement_within) {
+      const years = parseInt(retirement_within);
+      if ([1, 2, 3, 4, 5].includes(years)) {
+        conditions.push(`(retirement_date ~ '^\\d{2}-\\d{2}-\\d{4}$' AND TO_DATE(retirement_date, 'DD-MM-YYYY') BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '${years} years')`);
+      }
+    }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
@@ -65,8 +72,8 @@ export async function GET(request) {
     const countStr = `SELECT COUNT(*) as count FROM teachers ${whereClause}`;
 
     const [rows, countResult] = await Promise.all([
-      sql(queryStr, [...params, limit, offset]),
-      sql(countStr, params),
+      sql.query(queryStr, [...params, limit, offset]),
+      sql.query(countStr, params),
     ]);
 
     const total = parseInt(countResult[0].count);
