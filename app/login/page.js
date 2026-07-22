@@ -3,16 +3,23 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [role, setRole] = useState('Clerk');
+  const [role, setRole] = useState('Group School'); // 'Group School', 'TPEO', 'DPEO'
+  const [taluka, setTaluka] = useState('Shihor'); // Default taluka for TPEO
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  const TALUKAS = [
+    'Bhavnagar', 'Gariadhar', 'Ghogha', 'Jesar', 'Mahuva',
+    'Palitana', 'Shihor', 'Talaja', 'Umrala', 'Vallabhipur'
+  ];
+
   useEffect(() => {
     // Clear existing session
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_name');
+    localStorage.removeItem('user_taluka');
   }, []);
 
   const handleSubmit = (e) => {
@@ -22,23 +29,45 @@ export default function LoginPage() {
 
     setTimeout(() => {
       // Mock validation
-      if (role === 'Clerk' && password !== 'clerk123') {
-        setError('Invalid password for Clerk role (use clerk123)');
+      if (role === 'Group School' && password !== 'school123') {
+        setError('Invalid password for Group School role (use school123)');
         setLoading(false);
         return;
       }
-      if (role === 'Approver' && password !== 'approver123') {
-        setError('Invalid password for Approver role (use approver123)');
+      if (role === 'TPEO' && password !== 'tpeo123') {
+        setError('Invalid password for TPEO role (use tpeo123)');
+        setLoading(false);
+        return;
+      }
+      if (role === 'DPEO' && password !== 'dpeo123') {
+        setError('Invalid password for DPEO role (use dpeo123)');
+        setLoading(false);
+        return;
+      }
+      if (role === 'DPPF' && password !== 'dppf123') {
+        setError('Invalid password for DPPF role (use dppf123)');
         setLoading(false);
         return;
       }
 
       localStorage.setItem('user_role', role);
-      localStorage.setItem('user_name', role === 'Clerk' ? 'Clerk Submitter' : 'Higher Authority');
+      if (role === 'TPEO') {
+        localStorage.setItem('user_name', `TPEO - ${taluka}`);
+        localStorage.setItem('user_taluka', taluka);
+      } else {
+        localStorage.setItem('user_name', role);
+      }
       
-      router.push('/proposals');
+      router.push('/');
       router.refresh();
     }, 600);
+  };
+
+  const getExpectedPassword = () => {
+    if (role === 'Group School') return 'school123';
+    if (role === 'TPEO') return 'tpeo123';
+    if (role === 'DPEO') return 'dpeo123';
+    return 'dppf123';
   };
 
   return (
@@ -53,7 +82,7 @@ export default function LoginPage() {
     }}>
       <div className="chart-card fade-in" style={{
         width: '100%',
-        maxWidth: '420px',
+        maxWidth: '460px',
         padding: '2.5rem',
         boxShadow: '0 8px 30px rgba(15, 23, 42, 0.08)',
         borderRadius: '16px',
@@ -76,10 +105,10 @@ export default function LoginPage() {
             🔑
           </div>
           <h2 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-            Retirement Benefits Portal
+            Pension Management Portal
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-            Log in to manage benefits proposals and approvals
+            Log in to manage pension proposals and approvals
           </p>
         </div>
 
@@ -101,54 +130,110 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '1.25rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', uppercase: 'true' }}>
-              SELECT USER ROLE
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Select User Role
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.4rem', marginBottom: '0.75rem' }}>
               <button
                 type="button"
-                onClick={() => setRole('Clerk')}
+                onClick={() => setRole('Group School')}
                 style={{
-                  padding: '0.75rem',
+                  padding: '0.65rem 0.15rem',
                   borderRadius: '8px',
-                  border: '1px solid ' + (role === 'Clerk' ? 'var(--accent-primary)' : 'var(--border)'),
-                  background: role === 'Clerk' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
-                  color: role === 'Clerk' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  border: '1px solid ' + (role === 'Group School' ? 'var(--accent-primary)' : 'var(--border)'),
+                  background: role === 'Group School' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
+                  color: role === 'Group School' ? 'var(--accent-primary)' : 'var(--text-secondary)',
                   fontWeight: 600,
-                  fontSize: '0.8rem',
+                  fontSize: '0.72rem',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  textAlign: 'center'
                 }}
               >
-                Clerk / Submitter
+                School
               </button>
               <button
                 type="button"
-                onClick={() => setRole('Approver')}
+                onClick={() => setRole('TPEO')}
                 style={{
-                  padding: '0.75rem',
+                  padding: '0.65rem 0.15rem',
                   borderRadius: '8px',
-                  border: '1px solid ' + (role === 'Approver' ? 'var(--accent-primary)' : 'var(--border)'),
-                  background: role === 'Approver' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
-                  color: role === 'Approver' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  border: '1px solid ' + (role === 'TPEO' ? 'var(--accent-primary)' : 'var(--border)'),
+                  background: role === 'TPEO' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
+                  color: role === 'TPEO' ? 'var(--accent-primary)' : 'var(--text-secondary)',
                   fontWeight: 600,
-                  fontSize: '0.8rem',
+                  fontSize: '0.72rem',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  textAlign: 'center'
                 }}
               >
-                Approver (Authority)
+                TPEO
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('DPEO')}
+                style={{
+                  padding: '0.65rem 0.15rem',
+                  borderRadius: '8px',
+                  border: '1px solid ' + (role === 'DPEO' ? 'var(--accent-primary)' : 'var(--border)'),
+                  background: role === 'DPEO' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
+                  color: role === 'DPEO' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.72rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'center'
+                }}
+              >
+                DPEO
+              </button>
+              <button
+                type="button"
+                onClick={() => setRole('DPPF')}
+                style={{
+                  padding: '0.65rem 0.15rem',
+                  borderRadius: '8px',
+                  border: '1px solid ' + (role === 'DPPF' ? 'var(--accent-primary)' : 'var(--border)'),
+                  background: role === 'DPPF' ? 'rgba(59, 130, 246, 0.06)' : 'transparent',
+                  color: role === 'DPPF' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.72rem',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  textAlign: 'center'
+                }}
+              >
+                DPPF
               </button>
             </div>
           </div>
 
+          {role === 'TPEO' && (
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Select Taluka (Officer Area)
+              </label>
+              <select
+                className="filter-select"
+                value={taluka}
+                onChange={(e) => setTaluka(e.target.value)}
+                style={{ width: '100%', padding: '0.75rem', borderRadius: '8px' }}
+              >
+                {TALUKAS.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-              PASSWORD
+            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Password
             </label>
             <input
               type="password"
-              placeholder={role === 'Clerk' ? 'Enter clerk123' : 'Enter approver123'}
+              placeholder={`Enter ${getExpectedPassword()}`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -168,8 +253,8 @@ export default function LoginPage() {
             />
             <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
               <span>Demo Password:</span>
-              <span style={{ fontWeight: 600, color: 'var(--accent-primary)', cursor: 'pointer' }} onClick={() => setPassword(role === 'Clerk' ? 'clerk123' : 'approver123')}>
-                Auto-fill ({role === 'Clerk' ? 'clerk123' : 'approver123'})
+              <span style={{ fontWeight: 600, color: 'var(--accent-primary)', cursor: 'pointer' }} onClick={() => setPassword(getExpectedPassword())}>
+                Auto-fill ({getExpectedPassword()})
               </span>
             </div>
           </div>

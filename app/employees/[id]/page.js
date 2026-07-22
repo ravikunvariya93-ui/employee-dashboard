@@ -4,9 +4,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 
-function DetailCard({ title, icon, children }) {
+function DetailCard({ title, icon, children, style }) {
   return (
-    <div className="detail-card">
+    <div className="detail-card" style={style}>
       <div className="detail-card-header">
         {icon}
         {title}
@@ -27,60 +27,27 @@ function DetailRow({ label, value, accent }) {
   );
 }
 
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  // Check if it's YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+  }
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+  }
+  return dateStr;
+}
+
 function getRetirementBenefits(emp) {
   if (!emp) return null;
-  const basic = Number(emp.pay_7th || 0);
   const isFix = emp.salary_type === 'Fix';
-  const payType = (emp.pay_type || '').toLowerCase();
-  
-  let years = 30;
-  if (emp.joined_district && emp.retirement_date) {
-    const jp = emp.joined_district.split('-');
-    const rp = emp.retirement_date.split('-');
-    if (jp.length === 3 && rp.length === 3) {
-      const jy = parseInt(jp[2]);
-      const ry = parseInt(rp[2]);
-      if (!isNaN(jy) && !isNaN(ry)) {
-        years = Math.max(0, ry - jy);
-      }
-    }
-  }
-
-  if (isFix || basic === 0) {
-    return {
-      eligible: false,
-      reason: isFix ? 'Fix Salary employee (Contract/Probation period)' : 'Salary details not specified',
-      pension: '—',
-      gratuity: '—',
-      pf: '—',
-      leaveEncashment: '—',
-      gis: '—'
-    };
-  }
-
-  const da = basic * 0.50; // Estimated 50% DA
-  const pensionMonthly = basic * 0.50;
-  const familyPension = basic * 0.30;
-  const gratuityVal = Math.min(2000000, ((basic + da) / 26) * 15 * years);
-  const leaveVal = ((basic + da) / 30) * 300; 
-
-  let pfText = '—';
-  if (emp.pf_number) {
-    const typeLabel = payType.includes('gpf') ? 'GPF' : (payType.includes('cpf') ? 'CPF' : 'NPS');
-    pfText = `${typeLabel} A/C: ${emp.pf_number}`;
-  }
-
-  const gisVal = 100000;
-
-  return {
-    eligible: true,
-    yearsOfService: years,
-    pension: `₹${Math.round(pensionMonthly).toLocaleString()} / month (Family: ₹${Math.round(familyPension).toLocaleString()}/mo)`,
-    gratuity: `₹${Math.round(gratuityVal).toLocaleString()}`,
-    pf: pfText,
-    leaveEncashment: `₹${Math.round(leaveVal).toLocaleString()} (For max 300 leaves)`,
-    gis: `₹${gisVal.toLocaleString()} (Group C Cover)`
-  };
+  return { eligible: !isFix, reason: isFix ? 'Fix Salary employee (Contract/Probation period)' : '' };
 }
 
 export default function EmployeeDetailPage() {
@@ -90,31 +57,47 @@ export default function EmployeeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [role, setRole] = useState(null);
+  const [userTaluka, setUserTaluka] = useState(null);
   
   // Proposal workflow states
   const [proposal, setProposal] = useState(null);
   const [showProposalForm, setShowProposalForm] = useState(false);
   
-  // Form fields for Pension Proposal
-  const [qualifyingService, setQualifyingService] = useState(30);
-  const [averageEmoluments, setAverageEmoluments] = useState(0);
-  const [commutationPercent, setCommutationPercent] = useState(0); // 0 to 40
-  const [bankName, setBankName] = useState('');
-  const [bankAccount, setBankAccount] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
+  // Form fields for Pension Proposal (simplified: only worksheet & remarks)
+  const [worksheetNo, setWorksheetNo] = useState('');
+  const [worksheetDate, setWorksheetDate] = useState('');
   const [clerkRemarks, setClerkRemarks] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   
-  // Approver action states
+  // Workflow action remarks
   const [approverRemarks, setApproverRemarks] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [backUrl, setBackUrl] = useState('/');
+  const [backLabel, setBackLabel] = useState('Pension Dashboard');
 
   const benefits = getRetirementBenefits(emp);
 
-  // Load role on mount
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Load role & taluka on mount & check authentication
   useEffect(() => {
-    setRole(localStorage.getItem('user_role'));
-  }, []);
+    const savedRole = localStorage.getItem('user_role');
+    if (!savedRole) {
+      router.replace('/login');
+    } else {
+      setRole(savedRole);
+      setUserTaluka(localStorage.getItem('user_taluka'));
+      setAuthChecked(true);
+
+      if (typeof window !== 'undefined') {
+        const from = new URLSearchParams(window.location.search).get('from');
+        if (from === 'report') {
+          setBackUrl('/pension-report');
+          setBackLabel('Pension Report');
+        }
+      }
+    }
+  }, [router]);
 
   // Fetch teacher profile
   useEffect(() => {
@@ -127,20 +110,6 @@ export default function EmployeeDetailPage() {
       .then((d) => { 
         setEmp(d); 
         setLoading(false);
-        // Pre-populate defaults for form
-        setAverageEmoluments(Number(d.pay_7th || 0));
-        // calculate years
-        let years = 30;
-        if (d.joined_district && d.retirement_date) {
-          const jp = d.joined_district.split('-');
-          const rp = d.retirement_date.split('-');
-          if (jp.length === 3 && rp.length === 3) {
-            const jy = parseInt(jp[2]);
-            const ry = parseInt(rp[2]);
-            if (!isNaN(jy) && !isNaN(ry)) years = Math.max(0, ry - jy);
-          }
-        }
-        setQualifyingService(years);
       })
       .catch((e) => { setError(e.message); setLoading(false); });
   }, [id]);
@@ -152,7 +121,10 @@ export default function EmployeeDetailPage() {
       .then((r) => r.json())
       .then((d) => {
         if (d.success && d.data && d.data.length > 0) {
-          setProposal(d.data[0]);
+          const prop = d.data[0];
+          setProposal(prop);
+          setWorksheetNo(prop.worksheet_no || '');
+          setWorksheetDate(prop.worksheet_date || '');
         } else {
           setProposal(null);
         }
@@ -164,39 +136,37 @@ export default function EmployeeDetailPage() {
     fetchProposalDetails();
   }, [id, fetchProposalDetails]);
 
-  const handleCreateProposal = (e) => {
+  const handleSaveProposal = (e) => {
     e.preventDefault();
     if (!emp) return;
     setFormSubmitting(true);
 
-    const pensionVal = Math.round(Number(averageEmoluments || 0) * 0.50);
-    const familyPensionVal = Math.round(Number(averageEmoluments || 0) * 0.30);
-    const commutedMonthly = pensionVal * (Number(commutationPercent || 0) / 100);
-    const commutedVal = Math.round(commutedMonthly * 12 * 8.371);
-    const reducedPensionVal = Math.round(pensionVal - commutedMonthly);
+    const newHistory = proposal
+      ? `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] Resubmitted by Group School. Remarks: ${clerkRemarks || 'No remarks'}`
+      : `[${new Date().toLocaleString('en-IN')}] Proposal initiated by Group School. Status: Submitted to TPEO.`;
 
-    fetch('/api/proposals', {
-      method: 'POST',
+    const method = proposal ? 'PATCH' : 'POST';
+    const endpoint = proposal ? `/api/proposals/${proposal.id}` : '/api/proposals';
+
+    const payload = {
+      teacher_id: emp.id,
+      teacher_name: emp.name_english,
+      teacher_code: emp.teacher_code,
+      submitted_by: 'Group School',
+      benefit_type: 'Pension',
+      worksheet_no: worksheetNo,
+      worksheet_date: worksheetDate,
+      taluka: emp.taluka,
+      status: 'Submitted to TPEO',
+      current_handler: 'TPEO',
+      history: newHistory,
+      remarks: clerkRemarks
+    };
+
+    fetch(endpoint, {
+      method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        teacher_id: emp.id,
-        teacher_name: emp.name_english,
-        teacher_code: emp.teacher_code,
-        submitted_by: 'Clerk Submitter',
-        benefit_type: 'Pension',
-        qualifying_service: qualifyingService,
-        last_basic_pay: emp.pay_7th,
-        average_emoluments: averageEmoluments,
-        pension: pensionVal,
-        family_pension: familyPensionVal,
-        commutation_percent: commutationPercent,
-        commuted_value: commutedVal,
-        reduced_pension: reducedPensionVal,
-        bank_name: bankName,
-        bank_account: bankAccount,
-        ifsc_code: ifscCode,
-        remarks: clerkRemarks
-      })
+      body: JSON.stringify(payload)
     })
       .then((r) => r.json())
       .then((d) => {
@@ -215,19 +185,71 @@ export default function EmployeeDetailPage() {
       });
   };
 
-  const handleApproverAction = (statusVal) => {
-    if (statusVal === 'Rejected' && !approverRemarks.trim()) {
-      alert('Remarks are required for rejecting a proposal.');
-      return;
+  const handleWorkflowAction = (actionType) => {
+    if (!proposal) return;
+    
+    let nextStatus = '';
+    let nextHandler = '';
+    let actionLabel = '';
+    
+    if (actionType === 'tpeo_forward') {
+      nextStatus = 'Submitted to DPEO';
+      nextHandler = 'DPEO';
+      actionLabel = `Forwarded to DPEO by TPEO - ${userTaluka}`;
+    } else if (actionType === 'tpeo_query') {
+      if (!approverRemarks.trim()) {
+        alert('Please specify the query in remarks.');
+        return;
+      }
+      nextStatus = 'Queried by TPEO';
+      nextHandler = 'Group School';
+      actionLabel = `Query raised by TPEO - ${userTaluka}`;
+    } else if (actionType === 'dpeo_approve') {
+      nextStatus = 'Approved';
+      nextHandler = 'DPPF / Settle';
+      actionLabel = 'Approved & forwarded to DPPF by DPEO';
+    } else if (actionType === 'dpeo_query') {
+      if (!approverRemarks.trim()) {
+        alert('Please specify the query in remarks.');
+        return;
+      }
+      nextStatus = 'Queried by DPEO';
+      nextHandler = 'TPEO';
+      actionLabel = 'Query raised by DPEO (returned to TPEO)';
+    } else if (actionType === 'dpeo_dppf_query') {
+      if (!approverRemarks.trim()) {
+        alert('Please specify the DPPF query in remarks.');
+        return;
+      }
+      nextStatus = 'Queried by DPPF';
+      nextHandler = 'TPEO';
+      actionLabel = 'DPPF Query written and returned to TPEO by DPEO';
+    } else if (actionType === 'dppf_query') {
+      if (!approverRemarks.trim()) {
+        alert('Please specify the DPPF query in remarks.');
+        return;
+      }
+      nextStatus = 'Queried by DPPF';
+      nextHandler = 'TPEO';
+      actionLabel = 'Query raised by DPPF Officer (returned to TPEO)';
+    } else if (actionType === 'dppf_settle') {
+      nextStatus = 'Settled by DPPF';
+      nextHandler = 'Completed';
+      actionLabel = 'Approved & Settled by DPPF Officer';
     }
+
     setActionLoading(true);
+
+    const newHistory = `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] ${actionLabel}. Remarks: ${approverRemarks || 'No remarks'}`;
 
     fetch(`/api/proposals/${proposal.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        status: statusVal,
-        approved_by: 'Higher Authority',
+        status: nextStatus,
+        current_handler: nextHandler,
+        history: newHistory,
+        approved_by: nextStatus === 'Approved' ? 'DPEO' : proposal.approved_by,
         remarks: approverRemarks
       })
     })
@@ -238,7 +260,7 @@ export default function EmployeeDetailPage() {
           setApproverRemarks('');
           fetchProposalDetails();
         } else {
-          alert('Failed to update proposal: ' + d.error);
+          alert('Failed to perform action: ' + d.error);
         }
       })
       .catch((err) => {
@@ -247,16 +269,17 @@ export default function EmployeeDetailPage() {
       });
   };
 
-  // Live computations for form
-  const computedPension = Math.round(Number(averageEmoluments || 0) * 0.50);
-  const computedFamilyPension = Math.round(Number(averageEmoluments || 0) * 0.30);
-  const computedCommutedMonthly = computedPension * (Number(commutationPercent || 0) / 100);
-  const computedCommutedLump = Math.round(computedCommutedMonthly * 12 * 8.371);
-  const computedReducedPension = Math.round(computedPension - computedCommutedMonthly);
-
   const initials = emp?.name_english
     ? emp.name_english.split(' ').slice(0, 2).map((n) => n[0]).join('')
     : '?';
+
+  if (!authChecked) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div className="loading-spinner" />
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -281,13 +304,15 @@ export default function EmployeeDetailPage() {
             <div className="empty-state">
               <div className="empty-icon">😕</div>
               <div className="empty-title">{error || 'Employee not found'}</div>
-              <Link href="/employees" className="btn btn-primary" style={{ marginTop: '1rem' }}>← Back to Employees</Link>
+              <Link href={backUrl} className="btn btn-primary" style={{ marginTop: '1rem' }}>← Back to {backLabel}</Link>
             </div>
           </div>
         </main>
       </div>
     );
   }
+
+  const isTpeoForThisTaluka = role === 'TPEO' && userTaluka?.toUpperCase() === emp?.taluka?.toUpperCase();
 
   return (
     <div className="app-shell">
@@ -299,7 +324,7 @@ export default function EmployeeDetailPage() {
             <div className="topbar-subtitle">ID #{emp.id}</div>
           </div>
           <div className="topbar-actions">
-            <Link href="/employees" className="btn btn-ghost btn-sm">← Back</Link>
+            <Link href={backUrl} className="btn btn-ghost btn-sm">← Back</Link>
           </div>
         </div>
 
@@ -420,77 +445,174 @@ export default function EmployeeDetailPage() {
               <DetailRow label="Remarks" value={emp.remarks} />
             </DetailCard>
 
+            {/* Extended Pension Proposal Section (Full Width) */}
             <DetailCard
               title="Pension Proposal & Settlement"
+              style={{ gridColumn: '1 / -1' }}
               icon={
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                 </svg>
               }
             >
-              {proposal ? (
-                /* CASE: Proposal Exists */
+              {proposal && !showProposalForm ? (
+                /* CASE: Proposal Exists & Not Editing */
                 <div style={{ padding: '0.25rem 0' }}>
                   <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)' }}>
                     <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Proposal Status:</span>
                     <span className={`badge ${
-                      proposal.status === 'Approved' ? 'badge-green' : (proposal.status === 'Rejected' ? 'badge-red' : 'badge-orange')
+                      proposal.status === 'Approved' || proposal.status?.startsWith('Settled') ? 'badge-green' : (proposal.status?.startsWith('Queried') ? 'badge-red' : 'badge-blue')
                     }`}>
                       {proposal.status}
                     </span>
                   </div>
 
-                  <DetailRow label="Qualifying Service" value={`${proposal.qualifying_service} Years`} />
-                  <DetailRow label="Average Emoluments" value={`₹${Number(proposal.average_emoluments).toLocaleString()}`} />
-                  <DetailRow label="Monthly Pension" value={`₹${Number(proposal.pension).toLocaleString()}`} accent="var(--accent-primary)" />
-                  <DetailRow label="Family Pension" value={`₹${Number(proposal.family_pension).toLocaleString()}`} />
-                  <DetailRow label="Commutation %" value={`${proposal.commutation_percent}%`} />
-                  <DetailRow label="Commuted Value (Lump)" value={`₹${Number(proposal.commuted_value).toLocaleString()}`} accent="var(--accent-green)" />
-                  <DetailRow label="Reduced Pension (Net)" value={`₹${Number(proposal.reduced_pension).toLocaleString()}`} accent="var(--accent-green)" />
-                  
-                  <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>DISBURSEMENT BANK DETAILS</div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-primary)' }}>{proposal.bank_name}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>A/C: {proposal.bank_account} | IFSC: {proposal.ifsc_code}</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem 1rem', padding: '0.5rem 0' }}>
+                    <DetailRow label="Current Handler" value={proposal.current_handler} accent="var(--accent-primary)" />
+                    <DetailRow label="Worksheet No." value={proposal.worksheet_no || 'Pending'} accent="var(--accent-orange)" />
+                    <DetailRow label="Worksheet Date" value={formatDate(proposal.worksheet_date)} />
+                    <DetailRow label="Submitted By" value={proposal.submitted_by} />
                   </div>
 
-                  <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                    <div>Submitted by: <strong>{proposal.submitted_by}</strong></div>
-                    {proposal.approved_by && <div style={{ marginTop: '0.15rem' }}>Sanctioned by: <strong>{proposal.approved_by}</strong></div>}
-                    {proposal.remarks && <div style={{ marginTop: '0.35rem', color: 'var(--text-muted)', fontStyle: 'italic', padding: '0.4rem', background: 'var(--bg-primary)', borderRadius: '4px' }}>Remarks: &quot;{proposal.remarks}&quot;</div>}
-                  </div>
-
-                  {proposal.status === 'Pending' && role === 'Approver' && (
-                    <form onSubmit={(e) => { e.preventDefault(); }} style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', background: 'rgba(59, 130, 246, 0.02)' }}>
-                      <div style={{ marginBottom: '0.75rem' }}>
-                        <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Approver Remarks</label>
-                        <textarea
-                          placeholder="Add approval notes or rejection reason..."
-                          className="search-input"
-                          style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '50px' }}
-                          value={approverRemarks}
-                          onChange={(e) => setApproverRemarks(e.target.value)}
-                        />
+                  {proposal.history && (
+                    <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border-light)', background: 'var(--bg-primary)' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Action Timeline</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.75rem', marginLeft: '0.25rem' }}>
+                        {proposal.history.split('\n').filter(Boolean).map((line, idx) => (
+                          <div key={idx} style={{ position: 'relative', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                            <div style={{
+                              position: 'absolute',
+                              left: '-16px',
+                              top: '4px',
+                              width: '8px',
+                              height: '8px',
+                              borderRadius: '50%',
+                              background: 'var(--accent-primary)',
+                              border: '2px solid var(--bg-card)'
+                            }} />
+                            {line}
+                          </div>
+                        ))}
                       </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <button type="button" disabled={actionLoading} onClick={() => handleApproverAction('Rejected')} className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)', borderColor: 'rgba(239,68,68,0.3)' }}>
-                          Reject Proposal
-                        </button>
-                        <button type="button" disabled={actionLoading} onClick={() => handleApproverAction('Approved')} className="btn btn-primary btn-sm" style={{ background: 'var(--accent-green)' }}>
-                          Approve & Sanction
-                        </button>
-                      </div>
-                    </form>
+                    </div>
                   )}
 
-                  {proposal.status === 'Pending' && role === 'Clerk' && (
+                  {/* TPEO Actions */}
+                  {role === 'TPEO' && proposal.current_handler === 'TPEO' && (
+                    <div style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', background: 'rgba(59, 130, 246, 0.02)' }}>
+                      {!isTpeoForThisTaluka ? (
+                        <div style={{ fontSize: '0.78rem', color: 'var(--accent-red)', fontWeight: 500, textAlign: 'center' }}>
+                          ⚠️ This employee belongs to {emp.taluka} Taluka. Only TPEO - {emp.taluka} can process this proposal.
+                        </div>
+                      ) : (
+                        <form onSubmit={(e) => { e.preventDefault(); }}>
+                          <div style={{ marginBottom: '0.75rem' }}>
+                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Officer Remarks / Query Details</label>
+                            <textarea
+                              placeholder="Enter action remarks or query details..."
+                              className="search-input"
+                              style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '50px' }}
+                              value={approverRemarks}
+                              onChange={(e) => setApproverRemarks(e.target.value)}
+                            />
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('tpeo_query')} className="btn btn-ghost btn-sm" style={{ color: 'var(--accent-red)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                              ↩ Raise Query & Return
+                            </button>
+                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('tpeo_forward')} className="btn btn-primary btn-sm">
+                              Forward to DPEO ➔
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+                  )}
+
+                  {/* DPEO Actions */}
+                  {role === 'DPEO' && proposal.current_handler === 'DPEO' && (
+                    <div style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', background: 'rgba(59, 130, 246, 0.02)' }}>
+                      <form onSubmit={(e) => { e.preventDefault(); }}>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>DPEO Remarks / Query Details</label>
+                          <textarea
+                            placeholder="Enter remarks or queries (including DPPF queries)..."
+                            className="search-input"
+                            style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '50px' }}
+                            value={approverRemarks}
+                            onChange={(e) => setApproverRemarks(e.target.value)}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
+                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--accent-orange)', borderColor: 'rgba(245,158,11,0.3)' }}>
+                              ↩ Return DPEO Query
+                            </button>
+                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_dppf_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--accent-red)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                              ↩ Record DPPF Query & Return
+                            </button>
+                          </div>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_approve')} className="btn btn-success btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                            ✓ Approve & Forward to DPPF (Settle)
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* DPPF Actions */}
+                  {role === 'DPPF' && (proposal.current_handler?.includes('DPPF') || proposal.status === 'Approved' || proposal.status === 'Settled by DPPF') && (
+                    <div style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', background: 'rgba(168, 85, 247, 0.03)' }}>
+                      <form onSubmit={(e) => { e.preventDefault(); }}>
+                        <div style={{ marginBottom: '0.75rem' }}>
+                          <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>DPPF Officer Remarks / Query Details</label>
+                          <textarea
+                            placeholder="Enter DPPF query details or settlement remarks..."
+                            className="search-input"
+                            style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '50px' }}
+                            value={approverRemarks}
+                            onChange={(e) => setApproverRemarks(e.target.value)}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: 'var(--accent-red)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                            ↩ Raise DPPF Query & Return
+                          </button>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_settle')} className="btn btn-success btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                            ✓ Finalize & Settle Pension
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* Group School Resubmit Actions */}
+                  {role === 'Group School' && proposal.current_handler === 'Group School' && (
+                    <div style={{ padding: '1rem', borderTop: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--accent-red)', fontWeight: 500, textAlign: 'center', marginBottom: '0.25rem' }}>
+                        ↩ TPEO has queried this proposal. Please make required changes and resubmit.
+                      </div>
+                      <button onClick={() => setShowProposalForm(true)} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                        📝 Edit & Resubmit Proposal
+                      </button>
+                    </div>
+                  )}
+
+                  {/* General waiting states */}
+                  {proposal.status !== 'Approved' && proposal.current_handler !== role && (
                     <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid var(--border-light)' }}>
-                      ⏳ This proposal is pending approval by higher authorities.
+                      ⏳ Awaiting action from current handler: <strong>{proposal.current_handler}</strong>.
+                    </div>
+                  )}
+
+                  {proposal.status === 'Approved' && (
+                    <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--accent-green)', fontWeight: 600, borderTop: '1px solid var(--border-light)', background: 'rgba(16, 185, 129, 0.02)' }}>
+                      🎉 Pension proposal approved & settled. Sent to DPPF.
                     </div>
                   )}
                 </div>
               ) : (
-                /* CASE: No Proposal Yet */
+                /* CASE: No Proposal Yet OR Editing mode */
                 <div>
                   {benefits && !benefits.eligible ? (
                     <div style={{ padding: '1.25rem', fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center' }}>
@@ -499,131 +621,53 @@ export default function EmployeeDetailPage() {
                   ) : benefits ? (
                     <>
                       {!showProposalForm ? (
-                        /* Default display: estimates & initiate action */
+                        /* Default display: initiate action */
                         <>
-                          <DetailRow label="Estimated Pension" value={benefits.pension} accent="var(--accent-primary)" />
-                          <DetailRow label="Completed Service" value={`${benefits.yearsOfService} Years`} />
-                          
-                          <div style={{ padding: '1rem 1.25rem', borderTop: '1px solid var(--border-light)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {role === 'Clerk' ? (
+                          <div style={{ padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {role === 'Group School' ? (
                               <button onClick={() => setShowProposalForm(true)} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
                                 📁 Initiate Pension Proposal
                               </button>
-                            ) : role === 'Approver' ? (
+                            ) : role ? (
                               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem' }}>
-                                ⚠️ No pension proposal has been submitted yet for this employee.
+                                ⚠️ No pension proposal has been submitted yet for this employee by the Group School.
                               </div>
                             ) : (
                               <Link href="/login" className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
-                                🔒 Sign In to Propose Pension
+                                🔒 Sign In as Group School to Propose
                               </Link>
                             )}
-                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.25rem', lineHeight: '1.4', textAlign: 'center' }}>
-                              * Estimates based on Gujarat Civil Services Rules under 7th Pay.
-                            </div>
                           </div>
                         </>
                       ) : (
-                        /* Clerk Form */
-                        <form onSubmit={handleCreateProposal} style={{ padding: '1rem', borderTop: '1px solid var(--border-light)' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                            <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Qualifying Service (Yrs)</label>
-                              <input
-                                type="number"
-                                className="search-input"
-                                style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem' }}
-                                value={qualifyingService}
-                                onChange={(e) => setQualifyingService(e.target.value)}
-                                required
-                              />
-                            </div>
-                            <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Avg Emoluments (Basic)</label>
-                              <input
-                                type="number"
-                                className="search-input"
-                                style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem' }}
-                                value={averageEmoluments}
-                                onChange={(e) => setAverageEmoluments(e.target.value)}
-                                required
-                              />
-                            </div>
+                        /* Group School Submission Form (Worksheet & Remarks only) */
+                        <form onSubmit={handleSaveProposal} style={{ padding: '1rem', borderTop: '1px solid var(--border-light)' }}>
+                          <div style={{ padding: '0.5rem', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '6px', marginBottom: '1rem', border: '1px solid rgba(59, 130, 246, 0.1)' }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--accent-primary)', marginBottom: '0.25rem' }}>School Proposal Info</div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)' }}>Taluka: <strong>{emp.taluka}</strong></div>
                           </div>
 
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Commutation % (Max 40%)</label>
-                              <select
-                                className="filter-select"
-                                style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '31px' }}
-                                value={commutationPercent}
-                                onChange={(e) => setCommutationPercent(Number(e.target.value))}
-                              >
-                                <option value="0">No Commutation (0%)</option>
-                                <option value="10">10%</option>
-                                <option value="20">20%</option>
-                                <option value="30">30%</option>
-                                <option value="40">Maximum (40%)</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Commuted Value (Lump)</label>
-                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', padding: '0.4rem 0', fontSize: '0.85rem' }}>
-                                ₹{computedCommutedLump.toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style={{ padding: '0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', marginBottom: '1rem', border: '1px solid var(--border-light)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                              <span>Full Monthly Pension:</span>
-                              <strong>₹{computedPension.toLocaleString()}</strong>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: '0.25rem' }}>
-                              <span>Family Pension:</span>
-                              <strong>₹{computedFamilyPension.toLocaleString()}</strong>
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', borderTop: '1px dashed var(--border)', paddingTop: '0.25rem', marginTop: '0.25rem' }}>
-                              <span>Reduced Pension (Mo):</span>
-                              <strong style={{ color: 'var(--accent-green)' }}>₹{computedReducedPension.toLocaleString()}</strong>
-                            </div>
-                          </div>
-
-                          <div style={{ marginBottom: '0.75rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Bank Name</label>
-                            <input
-                              type="text"
-                              placeholder="State Bank of India"
-                              className="search-input"
-                              style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem' }}
-                              value={bankName}
-                              onChange={(e) => setBankName(e.target.value)}
-                              required
-                            />
-                          </div>
-
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Account Number</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Worksheet Number</label>
                               <input
                                 type="text"
                                 className="search-input"
+                                placeholder="WS-BHV-101"
                                 style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem' }}
-                                value={bankAccount}
-                                onChange={(e) => setBankAccount(e.target.value)}
+                                value={worksheetNo}
+                                onChange={(e) => setWorksheetNo(e.target.value)}
                                 required
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>IFSC Code</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>Worksheet Date</label>
                               <input
-                                type="text"
-                                placeholder="SBIN0001234"
+                                type="date"
                                 className="search-input"
                                 style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem' }}
-                                value={ifscCode}
-                                onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
+                                value={worksheetDate}
+                                onChange={(e) => setWorksheetDate(e.target.value)}
                                 required
                               />
                             </div>
@@ -634,7 +678,7 @@ export default function EmployeeDetailPage() {
                             <textarea
                               placeholder="Submission remarks / justifications..."
                               className="search-input"
-                              style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '40px', resize: 'vertical' }}
+                              style={{ width: '100%', padding: '0.4rem 0.5rem', fontSize: '0.78rem', height: '60px', resize: 'vertical' }}
                               value={clerkRemarks}
                               onChange={(e) => setClerkRemarks(e.target.value)}
                             />

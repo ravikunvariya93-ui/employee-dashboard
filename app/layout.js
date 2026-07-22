@@ -4,8 +4,8 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata = {
-  title: 'EduBVN – Employee Management Dashboard',
-  description: 'Teacher & Employee Management Dashboard for Bhavnagar District Schools',
+  title: 'EduBVN – Pension Management System',
+  description: 'Teacher Pension & Retirement Management Portal for Bhavnagar District Schools',
 };
 
 export default function RootLayout({ children }) {

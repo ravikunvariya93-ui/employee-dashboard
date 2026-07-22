@@ -128,11 +128,8 @@ export default function SeedPage() {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '1rem' }}>
-                <a href="/employees" className="btn btn-primary">
-                  View Employees →
-                </a>
-                <a href="/" className="btn btn-ghost">
-                  Dashboard →
+                <a href="/" className="btn btn-primary">
+                  Go to Pension Dashboard →
                 </a>
               </div>
             </div>

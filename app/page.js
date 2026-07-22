@@ -1,315 +1,429 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
-import StatCard from '@/components/StatCard';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend,
-} from 'recharts';
 
-const COLORS = ['#4f8ef7', '#7c5af7', '#22d3a5', '#f7904f', '#f75a5a', '#f7d04f', '#c45af7', '#4fc7f7', '#5af78e', '#f75aad'];
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border)',
-        borderRadius: '8px',
-        padding: '0.75rem 1rem',
-        fontSize: '0.8rem',
-        color: 'var(--text-primary)',
-      }}>
-        <div style={{ color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{label}</div>
-        {payload.map((p, i) => (
-          <div key={i} style={{ color: p.color || 'var(--accent-primary)', fontWeight: 600 }}>
-            {p.value?.toLocaleString()}
-          </div>
-        ))}
-      </div>
-    );
+// ── helpers ────────────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-');
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
   }
-  return null;
-};
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [d, m, y] = parts;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return `${d} ${months[parseInt(m, 10) - 1]} ${y}`;
+  }
+  return dateStr;
+}
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState(null);
+export default function PensionDashboardPage() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [subTab, setSubTab] = useState('pending'); // 'pending' | 'approved' | 'all'
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'action_required' | 'queried'
+  const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [taluka, setTaluka] = useState('');
 
+  // Authenticated user context
+  const [role, setRole] = useState(null);
+  const [userTaluka, setUserTaluka] = useState(null);
+
+  const TALUKA_LIST = [
+    'Bhavnagar', 'Gariadhar', 'Ghogha', 'Jesar', 'Mahuva',
+    'Palitana', 'Shihor', 'Talaja', 'Umrala', 'Vallabhipur',
+  ];
+
+  // Fetch role and taluka
   useEffect(() => {
-    fetch('/api/stats')
-      .then((r) => r.json())
-      .then((d) => { setStats(d); setLoading(false); })
-      .catch(() => setLoading(false));
+    const savedRole = localStorage.getItem('user_role');
+    if (!savedRole) {
+      router.replace('/login');
+    } else {
+      setRole(savedRole);
+      setUserTaluka(localStorage.getItem('user_taluka'));
+      setAuthChecked(true);
+    }
+  }, [router]);
+
+  const fetchProposals = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/proposals');
+      const json = await res.json();
+      if (json.success) {
+        setProposals(json.data || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    fetchProposals();
+  }, [fetchProposals]);
+
+  const checkIsApproved = (p) => {
+    return p.status === 'Approved' || p.status?.startsWith('Settled');
+  };
+
+  // Helper check for action required
+  const checkIsPendingAction = (p) => {
+    if (checkIsApproved(p)) return false;
+    if (role === 'TPEO') return p.current_handler === 'TPEO' && p.taluka?.toUpperCase() === userTaluka?.toUpperCase();
+    if (role === 'DPEO') return p.current_handler === 'DPEO';
+    if (role === 'Group School') return p.current_handler === 'Group School';
+    if (role === 'DPPF') return p.current_handler === 'DPPF' || p.current_handler === 'DPPF / Settle';
+    return false;
+  };
+
+  // Client-side filtering
+  const filteredProposals = proposals.filter((p) => {
+    // 1. Pending vs Approved Tab check
+    const isApproved = checkIsApproved(p);
+    if (subTab === 'pending' && isApproved) return false;
+    if (subTab === 'approved' && !isApproved) return false;
+
+    // 2. Quick Stat Card Filter Types
+    if (filterType === 'action_required' && !checkIsPendingAction(p)) return false;
+    if (filterType === 'queried' && !p.status?.startsWith('Queried')) return false;
+
+    // 3. Search filter
+    const matchesSearch =
+      !search ||
+      p.teacher_name?.toLowerCase().includes(search.toLowerCase()) ||
+      String(p.teacher_code).includes(search) ||
+      p.worksheet_no?.toLowerCase().includes(search.toLowerCase());
+
+    // 4. Taluka filter
+    const matchesTaluka = !taluka || p.taluka?.toUpperCase() === taluka?.toUpperCase();
+
+    // 5. Role-based visibility
+    const matchesRoleTaluka = role !== 'TPEO' || p.taluka?.toUpperCase() === userTaluka?.toUpperCase();
+
+    return matchesSearch && matchesTaluka && matchesRoleTaluka;
+  });
+
+  // Stats calculation
+  const totalCount = proposals.length;
+  const pendingActionCount = proposals.filter(checkIsPendingAction).length;
+  const queriedCount = proposals.filter(p => p.status?.startsWith('Queried')).length;
+  const approvedCount = proposals.filter(checkIsApproved).length;
+
+  if (!authChecked) {
     return (
-      <div className="app-shell">
-        <Sidebar />
-        <main className="main-content">
-          <div className="loading-overlay">
-            <div className="loading-spinner" />
-            Loading dashboard data...
-          </div>
-        </main>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
+        <div className="loading-spinner" />
       </div>
     );
   }
-
-  if (!stats || stats.error) {
-    return (
-      <div className="app-shell">
-        <Sidebar />
-        <main className="main-content">
-          <div className="page-container">
-            <div className="empty-state">
-              <div className="empty-icon">📊</div>
-              <div className="empty-title">No data found</div>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>
-                {stats?.error || 'Please import data first using the Data Import page.'}
-              </p>
-              <a href="/seed" className="btn btn-primary">Go to Data Import →</a>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  const salaryData = [
-    { name: 'Fix Salary', value: stats.fixSalary, color: '#4f8ef7' },
-    { name: 'Full Salary', value: stats.fullSalary, color: '#22d3a5' },
-  ];
 
   return (
     <div className="app-shell">
       <Sidebar />
       <main className="main-content">
+        {/* Topbar */}
         <div className="topbar">
           <div>
-            <div className="topbar-title">Dashboard Overview</div>
-            <div className="topbar-subtitle">Bhavnagar District Teacher Database</div>
+            <div className="topbar-title">🏛️ Pension Dashboard</div>
+            <div className="topbar-subtitle">Pending and Approved Pension Proposals workflow management</div>
           </div>
           <div className="topbar-actions">
-            <a href="/employees" className="btn btn-primary btn-sm">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-              </svg>
-              View All Employees
-            </a>
+            <button onClick={fetchProposals} className="btn btn-ghost btn-sm" disabled={loading}>
+              ⚡ Refresh
+            </button>
           </div>
         </div>
 
-        <div className="page-container">
-          {/* Stats Grid */}
-          <div className="stats-grid">
-            <StatCard
-              value={stats.total}
-              label="Total Teachers"
-              variant="blue"
-              delay={0}
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              }
-            />
-            <StatCard
-              value={stats.totalSchools}
-              label="Unique Schools"
-              variant="green"
-              delay={50}
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                  <polyline points="9 22 9 12 15 12 15 22" />
-                </svg>
-              }
-            />
-            <StatCard
-              value={stats.fixSalary}
-              label="Fix Salary"
-              variant="orange"
-              delay={100}
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-                </svg>
-              }
-            />
-            <StatCard
-              value={stats.fullSalary}
-              label="Full Salary"
-              variant="purple"
-              delay={150}
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                </svg>
-              }
-            />
-            <StatCard
-              value={stats.byTaluka?.length}
-              label="Talukas Covered"
-              variant="green"
-              delay={200}
-              icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="3 11 22 2 13 21 11 13 3 11" />
-                </svg>
-              }
-            />
-          </div>
+        <div className="page-container" style={{ paddingTop: '1.5rem' }}>
 
-          {/* Charts Row 1 */}
-          <div className="charts-grid">
-            {/* Teachers by Taluka */}
-            <div className="chart-card fade-in stagger-1">
-              <div className="chart-title">Teachers by Taluka</div>
-              <div className="chart-subtitle">Distribution across administrative blocks</div>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={stats.byTaluka} margin={{ top: 5, right: 10, left: -10, bottom: 60 }}>
-                  <XAxis
-                    dataKey="taluka"
-                    tick={{ fill: 'var(--text-muted)', fontSize: 11 }}
-                    angle={-35}
-                    textAnchor="end"
-                    interval={0}
-                  />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                    {stats.byTaluka.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+          {/* ── Stats Row with Interactive Links ──────────────────────── */}
+          <div className="pension-stats-row fade-in">
+            {/* Total Proposals */}
+            <div
+              className={`pension-stat-card pension-stat-blue ${subTab === 'all' && filterType === 'all' ? 'active-stat' : ''}`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => { setSubTab('all'); setFilterType('all'); }}
+              title="Click to view all proposals (Total count)"
+            >
+              <div className="pension-stat-icon">📂</div>
+              <div className="pension-stat-body">
+                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-primary)' }}>
+                  {totalCount}
+                </div>
+                <div className="pension-stat-label">Total Proposals</div>
+              </div>
             </div>
 
-            {/* Salary Type Donut */}
-            <div className="chart-card fade-in stagger-2">
-              <div className="chart-title">Salary Type Split</div>
-              <div className="chart-subtitle">Fix vs Full salary distribution</div>
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie
-                    data={salaryData}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius={65}
-                    outerRadius={95}
-                    paddingAngle={4}
-                    dataKey="value"
-                  >
-                    {salaryData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={(value) => <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+            {/* Requires Your Action */}
+            <div
+              className={`pension-stat-card pension-stat-red ${filterType === 'action_required' ? 'active-stat' : ''}`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => { setSubTab('pending'); setFilterType('action_required'); }}
+              title="Click to filter proposals requiring your action"
+            >
+              <div className="pension-stat-icon">⚡</div>
+              <div className="pension-stat-body">
+                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-red)' }}>
+                  {pendingActionCount}
+                </div>
+                <div className="pension-stat-label">Requires Your Action</div>
+              </div>
+            </div>
+
+            {/* Queried Cases */}
+            <div
+              className={`pension-stat-card pension-stat-orange ${filterType === 'queried' ? 'active-stat' : ''}`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => { setSubTab('pending'); setFilterType('queried'); }}
+              title="Click to filter queried cases"
+            >
+              <div className="pension-stat-icon">❓</div>
+              <div className="pension-stat-body">
+                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-orange)' }}>
+                  {queriedCount}
+                </div>
+                <div className="pension-stat-label">Queried Cases</div>
+              </div>
+            </div>
+
+            {/* Approved & Settled */}
+            <div
+              className={`pension-stat-card pension-stat-green ${subTab === 'approved' ? 'active-stat' : ''}`}
+              style={{ cursor: 'pointer' }}
+              onClick={() => { setSubTab('approved'); setFilterType('all'); }}
+              title="Click to view approved & settled cases"
+            >
+              <div className="pension-stat-icon">✅</div>
+              <div className="pension-stat-body">
+                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-green)' }}>
+                  {approvedCount}
+                </div>
+                <div className="pension-stat-label">Approved & Settled</div>
+              </div>
             </div>
           </div>
 
-          {/* Charts Row 2 */}
-          <div className="charts-grid">
-            {/* 7th Pay Distribution */}
-            <div className="chart-card fade-in stagger-3">
-              <div className="chart-title">7th Pay Basic Distribution</div>
-              <div className="chart-subtitle">Number of teachers in each pay bracket</div>
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={stats.pay7thDistribution} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                  <XAxis dataKey="range" tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-                  <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar dataKey="count" fill="#7c5af7" radius={[4, 4, 0, 0]}>
-                    {stats.pay7thDistribution.map((_, i) => (
-                      <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Pay Level */}
-            <div className="chart-card fade-in stagger-4">
-              <div className="chart-title">Pay Level Distribution</div>
-              <div className="chart-subtitle">Low vs High pay level tiers</div>
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={stats.byPayLevel}
-                    cx="50%"
-                    cy="45%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={4}
-                    dataKey="count"
-                    nameKey="pay_level"
-                  >
-                    {stats.byPayLevel.map((_, i) => (
-                      <Cell key={i} fill={COLORS[(i + 5) % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    formatter={(value) => <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+          {/* ── Tab Bar ────────────────────────────────────────────────── */}
+          <div className="pension-tabs fade-in stagger-1">
+            <button
+              className={`pension-tab ${subTab === 'pending' ? 'active' : ''}`}
+              onClick={() => { setSubTab('pending'); setFilterType('all'); }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 16 14"/>
+              </svg>
+              Pending Proposals
+              {(totalCount - approvedCount) > 0 && (
+                <span className="pension-tab-badge" style={{ background: 'var(--accent-orange)' }}>
+                  {totalCount - approvedCount}
+                </span>
+              )}
+            </button>
+            <button
+              className={`pension-tab ${subTab === 'approved' ? 'active' : ''}`}
+              onClick={() => { setSubTab('approved'); setFilterType('all'); }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              Approved Proposals
+              {approvedCount > 0 && (
+                <span className="pension-tab-badge" style={{ background: 'var(--accent-green)', color: 'white' }}>
+                  {approvedCount}
+                </span>
+              )}
+            </button>
+            <button
+              className={`pension-tab ${subTab === 'all' ? 'active' : ''}`}
+              onClick={() => { setSubTab('all'); setFilterType('all'); }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              All Proposals
+              {totalCount > 0 && (
+                <span className="pension-tab-badge" style={{ background: 'var(--accent-primary)', color: 'white' }}>
+                  {totalCount}
+                </span>
+              )}
+            </button>
           </div>
 
-          {/* Recent Employees */}
-          <div className="table-card fade-in">
+          {/* ── Main Table Card ────────────────────────────────────────── */}
+          <div className="table-card fade-in stagger-2">
             <div className="table-header">
               <div>
-                <div className="table-title">Recently Added Employees</div>
-                <div className="table-meta">Last 5 records in the database</div>
+                <div className="table-title">
+                  {subTab === 'pending' && filterType === 'all' && '📁 Pending Pension Proposals'}
+                  {subTab === 'pending' && filterType === 'action_required' && '⚡ Action Required Proposals'}
+                  {subTab === 'pending' && filterType === 'queried' && '❓ Queried Pension Cases'}
+                  {subTab === 'approved' && '✅ Approved Pension Proposals (Settled)'}
+                  {subTab === 'all' && '📂 All Pension Proposals'}
+                </div>
+                <div className="table-meta">
+                  {filteredProposals.length} records found
+                  {(filterType !== 'all' || subTab === 'all') && (
+                    <button
+                      onClick={() => { setSubTab('pending'); setFilterType('all'); }}
+                      className="btn btn-ghost btn-sm"
+                      style={{ marginLeft: '0.75rem', padding: '0.1rem 0.4rem', fontSize: '0.72rem' }}
+                    >
+                      Reset Filters ✕
+                    </button>
+                  )}
+                </div>
               </div>
-              <a href="/employees" className="btn btn-ghost btn-sm">View All →</a>
+
+              {/* Toolbar */}
+              <div className="table-toolbar">
+                {/* Search */}
+                <div className="search-wrapper">
+                  <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  </svg>
+                  <input
+                    className="search-input"
+                    placeholder="Search name, code, worksheet..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    style={{ width: 220 }}
+                  />
+                </div>
+
+                {/* Taluka filter */}
+                <select className="filter-select" value={taluka} onChange={e => setTaluka(e.target.value)}>
+                  <option value="">All Talukas</option>
+                  {TALUKA_LIST.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
             </div>
-            <div className="table-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Taluka</th>
-                    <th>School</th>
-                    <th>Salary Type</th>
-                    <th>7th Pay</th>
-                    <th>Joined School</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.recentEmployees?.map((emp) => (
-                    <tr key={emp.id}>
-                      <td className="name-cell">{emp.name_english}</td>
-                      <td>{emp.taluka}</td>
-                      <td title={emp.school_name}>{emp.school_name?.substring(0, 25)}{emp.school_name?.length > 25 ? '…' : ''}</td>
-                      <td>
-                        <span className={`badge ${emp.salary_type === 'Fix' ? 'badge-orange' : 'badge-green'}`}>
-                          {emp.salary_type}
-                        </span>
-                      </td>
-                      <td>₹{emp.pay_7th ? Number(emp.pay_7th).toLocaleString() : '—'}</td>
-                      <td>{emp.joined_school || '—'}</td>
+
+            {/* Table */}
+            {loading ? (
+              <div className="loading-overlay">
+                <div className="loading-spinner" style={{ borderTopColor: 'var(--accent-primary)', borderColor: 'var(--border)', width: 32, height: 32 }}/>
+                <span>Loading proposals…</span>
+              </div>
+            ) : filteredProposals.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📁</div>
+                <div className="empty-title">No proposals found</div>
+                <p>There are no proposals matching your current selection.</p>
+                <button onClick={() => { setSubTab('all'); setFilterType('all'); setSearch(''); setTaluka(''); }} className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem' }}>
+                  Show All Proposals
+                </button>
+              </div>
+            ) : (
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40 }}>#</th>
+                      <th>Employee</th>
+                      <th>Taluka</th>
+                      <th>Worksheet No.</th>
+                      <th>Worksheet Date</th>
+                      <th>Current Status</th>
+                      <th>Current Handler</th>
+                      <th>Submitted By</th>
+                      <th>Last Action</th>
+                      <th style={{ width: 60 }}>Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredProposals.map((prop, idx) => {
+                      const isPendingAction = checkIsPendingAction(prop);
+
+                      return (
+                        <tr key={prop.id} className={isPendingAction ? 'pension-row-urgent' : ''}>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{idx + 1}</td>
+                          <td>
+                            <Link href={`/employees/${prop.teacher_id}`} className="pension-emp-link">
+                              <div className="pension-avatar">
+                                {prop.teacher_name?.charAt(0)?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
+                                  {prop.teacher_name}
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                  #{prop.teacher_code}
+                                </div>
+                              </div>
+                            </Link>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{prop.taluka}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)' }}>
+                              {prop.worksheet_no || '—'}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.8rem' }}>
+                              {formatDate(prop.worksheet_date)}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`badge ${
+                              checkIsApproved(prop) ? 'badge-green' : (prop.status?.startsWith('Queried') ? 'badge-red' : 'badge-blue')
+                            }`}>
+                              {prop.status}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)' }}>
+                              {prop.current_handler}
+                            </span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{prop.submitted_by}</span>
+                          </td>
+                          <td>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {new Date(prop.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                            </span>
+                          </td>
+                          <td>
+                            <Link href={`/employees/${prop.teacher_id}`} className="btn btn-primary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>
+                              {isPendingAction ? 'Process' : 'View'}
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Help legend */}
+          <div className="pension-legend fade-in stagger-3">
+            <div className="pension-legend-item">
+              <div className="pension-legend-dot" style={{ background: 'rgba(245,158,11,0.15)' }}/>
+              <span>Highlight indicates proposal requires action from your role</span>
+            </div>
+            <div className="pension-legend-item" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+              💡 Click stat numbers to filter proposals
             </div>
           </div>
+
         </div>
       </main>
     </div>

@@ -4,8 +4,8 @@ import { NextResponse } from 'next/server';
 // Self-healing & migration: check columns and recreate table if old schema
 async function ensureTableExists() {
   try {
-    // Check if the new column benefit_type exists
-    await sql.query(`SELECT benefit_type FROM proposals LIMIT 1`);
+    // Check if the new column worksheet_no exists
+    await sql.query(`SELECT worksheet_no FROM proposals LIMIT 1`);
   } catch (err) {
     console.log('Migrating proposals table to include Pension detailed fields...');
     await sql.query(`DROP TABLE IF EXISTS proposals`);
@@ -19,7 +19,7 @@ async function ensureTableExists() {
       teacher_code BIGINT,
       submitted_by TEXT,
       approved_by TEXT,
-      status TEXT DEFAULT 'Pending', -- 'Pending', 'Approved', 'Rejected'
+      status TEXT DEFAULT 'Submitted to TPEO', -- 'Submitted to TPEO', 'Queried by TPEO', 'Submitted to DPEO', 'Queried by DPEO', 'Queried by DPPF', 'Approved'
       benefit_type TEXT DEFAULT 'Pension', -- 'Pension', 'Gratuity', 'PF', etc.
       
       -- Service & Salary inputs
@@ -39,6 +39,15 @@ async function ensureTableExists() {
       bank_account TEXT,
       ifsc_code TEXT,
       
+      -- Worksheet details
+      worksheet_no TEXT,
+      worksheet_date TEXT,
+      
+      -- Workflow
+      taluka TEXT,
+      current_handler TEXT,
+      history TEXT,
+      
       remarks TEXT,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
@@ -52,6 +61,7 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || '';
     const teacher_id = searchParams.get('teacher_id') || '';
+    const taluka = searchParams.get('taluka') || '';
 
     let queryStr = `SELECT * FROM proposals`;
     let params = [];
@@ -64,6 +74,10 @@ export async function GET(request) {
     if (teacher_id) {
       conditions.push(`teacher_id = $${params.length + 1}`);
       params.push(parseInt(teacher_id));
+    }
+    if (taluka) {
+      conditions.push(`taluka = $${params.length + 1}`);
+      params.push(taluka);
     }
 
     if (conditions.length > 0) {
@@ -101,6 +115,11 @@ export async function POST(request) {
       bank_name,
       bank_account,
       ifsc_code,
+      worksheet_no,
+      worksheet_date,
+      taluka,
+      current_handler,
+      history,
       remarks
     } = body;
 
@@ -113,14 +132,15 @@ export async function POST(request) {
         teacher_id, teacher_name, teacher_code, submitted_by, benefit_type,
         qualifying_service, last_basic_pay, average_emoluments,
         pension, family_pension, commutation_percent, commuted_value, reduced_pension,
-        bank_name, bank_account, ifsc_code, remarks
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        bank_name, bank_account, ifsc_code,
+        worksheet_no, worksheet_date, taluka, current_handler, history, remarks
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
       RETURNING *
     `, [
       teacher_id,
       teacher_name,
       teacher_code ? parseInt(teacher_code) : null,
-      submitted_by || 'Clerk',
+      submitted_by || 'Group School',
       benefit_type || 'Pension',
       qualifying_service ? parseInt(qualifying_service) : 0,
       last_basic_pay ? parseFloat(last_basic_pay) : 0,
@@ -133,12 +153,45 @@ export async function POST(request) {
       bank_name || '',
       bank_account || '',
       ifsc_code || '',
+      worksheet_no || '',
+      worksheet_date || '',
+      taluka || '',
+      current_handler || 'TPEO',
+      history || 'Proposal initiated by Group School.',
       remarks || ''
     ]);
 
     return NextResponse.json({ success: true, data: result[0] });
   } catch (error) {
     console.error('Proposals POST error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request) {
+  try {
+    await ensureTableExists();
+    const { searchParams } = new URL(request.url);
+    const teacher_code = searchParams.get('teacher_code');
+    const teacher_name = searchParams.get('teacher_name');
+    const id = searchParams.get('id');
+
+    if (!teacher_code && !teacher_name && !id) {
+      return NextResponse.json({ success: false, error: 'Target proposal identifier required' }, { status: 400 });
+    }
+
+    let deleted = [];
+    if (teacher_code) {
+      deleted = await sql.query(`DELETE FROM proposals WHERE teacher_code = $1 RETURNING *`, [parseInt(teacher_code)]);
+    } else if (teacher_name) {
+      deleted = await sql.query(`DELETE FROM proposals WHERE teacher_name ILIKE $1 RETURNING *`, [`%${teacher_name}%`]);
+    } else if (id) {
+      deleted = await sql.query(`DELETE FROM proposals WHERE id = $1 RETURNING *`, [parseInt(id)]);
+    }
+
+    return NextResponse.json({ success: true, count: deleted.length, deleted });
+  } catch (error) {
+    console.error('Proposals DELETE error:', error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

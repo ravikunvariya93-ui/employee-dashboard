@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function EmployeesRedirect() {
+export default function PensionRedirect() {
   const router = useRouter();
   useEffect(() => {
     router.replace('/');
