@@ -61,12 +61,15 @@ function getUrgencyColor(days, tab) {
 }
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'All Status', color: '' },
-  { value: 'pending', label: 'Pending', color: 'badge-orange' },
-  { value: 'in_progress', label: 'In Progress', color: 'badge-blue' },
-  { value: 'submitted', label: 'Submitted', color: 'badge-purple' },
-  { value: 'approved', label: 'Approved', color: 'badge-green' },
-  { value: 'on_hold', label: 'On Hold', color: 'badge-red' },
+  { value: '', label: 'All Cases', color: '' },
+  { value: 'not_initiated', label: 'Not Initiated', color: 'badge-gray' },
+  { value: 'Submitted to TPEO', label: 'Submitted to TPEO', color: 'badge-blue' },
+  { value: 'Queried by TPEO', label: 'Queried by TPEO', color: 'badge-red' },
+  { value: 'Submitted to DPEO', label: 'Submitted to DPEO', color: 'badge-blue' },
+  { value: 'Queried by DPEO', label: 'Queried by DPEO', color: 'badge-red' },
+  { value: 'Submitted to DPPF', label: 'Submitted to DPPF', color: 'badge-blue' },
+  { value: 'Queried by DPPF', label: 'Queried by DPPF', color: 'badge-red' },
+  { value: 'Approved', label: 'Approved', color: 'badge-green' },
 ];
 
 function getCaseStatus(id) {
@@ -155,7 +158,7 @@ export default function PensionReportPage() {
 
   const filteredEmployees = employees.filter(emp => {
     if (!statusFilter) return true;
-    const s = getCaseStatus(emp.id);
+    const s = emp.proposal_status || 'not_initiated';
     return s === statusFilter;
   });
 
@@ -323,11 +326,9 @@ export default function PensionReportPage() {
                       <th>Employee</th>
                       <th>Taluka / School</th>
                       <th>Designation</th>
-                      <th>Pay (7th)</th>
                       <th>{tab === 'upcoming' ? 'Retirement Date' : 'Retired On'}</th>
                       <th>{tab === 'upcoming' ? 'Time Left' : 'Time Since'}</th>
                       <th>Pension Case</th>
-                      <th>Note</th>
                       <th style={{ width: 60 }}></th>
                     </tr>
                   </thead>
@@ -336,8 +337,6 @@ export default function PensionReportPage() {
                       const days = getDaysFromNow(emp.retirement_date);
                       const dayLabel = getDaysLabel(days, tab);
                       const urgency = getUrgencyColor(days, tab);
-                      const caseStatus = getCaseStatus(emp.id);
-                      const note = getPensionNote(emp.id);
 
                       return (
                         <tr key={emp.id} className={urgency}>
@@ -346,9 +345,6 @@ export default function PensionReportPage() {
                           </td>
                           <td>
                             <Link href={`/employees/${emp.id}?from=report`} className="pension-emp-link">
-                              <div className="pension-avatar">
-                                {emp.name_english?.charAt(0)?.toUpperCase() || '?'}
-                              </div>
                               <div>
                                 <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
                                   {emp.name_english}
@@ -369,11 +365,6 @@ export default function PensionReportPage() {
                             <span style={{ fontSize: '0.78rem' }}>{emp.designation || '—'}</span>
                           </td>
                           <td>
-                            <span style={{ fontWeight: 600, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-                              {emp.pay_7th ? `₹${Number(emp.pay_7th).toLocaleString('en-IN')}` : '—'}
-                            </span>
-                          </td>
-                          <td>
                             <div style={{ fontSize: '0.82rem', fontWeight: 500, color: tab === 'upcoming' ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
                               {formatDate(emp.retirement_date)}
                             </div>
@@ -384,42 +375,11 @@ export default function PensionReportPage() {
                             )}
                           </td>
                           <td>
-                            <select
-                              className="pension-status-select"
-                              data-status={caseStatus}
-                              value={caseStatus}
-                              onChange={e => handleStatusChange(emp.id, e.target.value)}
-                            >
-                              {STATUS_OPTIONS.filter(s => s.value).map(s => (
-                                <option key={s.value} value={s.value}>{s.label}</option>
-                              ))}
-                            </select>
-                          </td>
-                          <td>
-                            {editingNote === emp.id ? (
-                              <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
-                                <input
-                                  className="pension-note-input"
-                                  value={noteValue}
-                                  onChange={e => setNoteValue(e.target.value)}
-                                  onKeyDown={e => e.key === 'Enter' && handleNoteSave(emp.id)}
-                                  autoFocus
-                                  placeholder="Add note…"
-                                />
-                                <button
-                                  className="pension-note-save"
-                                  onClick={() => handleNoteSave(emp.id)}
-                                >✓</button>
-                              </div>
-                            ) : (
-                              <span
-                                className="pension-note-text"
-                                onClick={() => handleNoteEdit(emp.id)}
-                                title="Click to edit note"
-                              >
-                                {note || <span style={{ color: 'var(--border)', fontSize: '0.72rem' }}>+ add note</span>}
-                              </span>
-                            )}
+                            <span className={`badge ${
+                              !emp.proposal_status ? 'badge-gray' : (emp.proposal_status === 'Approved' ? 'badge-green' : (emp.proposal_status.startsWith('Queried') ? 'badge-red' : 'badge-blue'))
+                            }`}>
+                              {emp.proposal_status || 'Not Initiated'}
+                            </span>
                           </td>
                           <td>
                             <Link href={`/employees/${emp.id}?from=report`} className="btn btn-ghost btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>

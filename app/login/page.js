@@ -150,7 +150,7 @@ export default function LoginPage() {
                   textAlign: 'center'
                 }}
               >
-                School
+                Group School
               </button>
               <button
                 type="button"

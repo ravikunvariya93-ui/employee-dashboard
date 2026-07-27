@@ -48,7 +48,8 @@ export async function GET(request) {
       SELECT
         id, teacher_code, name_english, name_gujarati,
         taluka, school_name, designation, salary_type,
-        pay_7th, pay_level, dob, retirement_date, joined_school
+        pay_7th, pay_level, dob, retirement_date, joined_school,
+        (SELECT status FROM proposals WHERE teacher_id = teachers.id LIMIT 1) as proposal_status
       FROM teachers
       ${whereClause}
       ORDER BY

@@ -34,6 +34,7 @@ export default function PensionDashboardPage() {
   // Authenticated user context
   const [role, setRole] = useState(null);
   const [userTaluka, setUserTaluka] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const TALUKA_LIST = [
     'Bhavnagar', 'Gariadhar', 'Ghogha', 'Jesar', 'Mahuva',
@@ -70,6 +71,25 @@ export default function PensionDashboardPage() {
   useEffect(() => {
     fetchProposals();
   }, [fetchProposals]);
+
+  const handleDeleteProposal = async (prop) => {
+    const confirmMsg = `Delete pension proposal for ${prop.teacher_name}?\n\nThis action cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+    setDeletingId(prop.id);
+    try {
+      const res = await fetch(`/api/proposals/${prop.id}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (json.success) {
+        setProposals(prev => prev.filter(p => p.id !== prop.id));
+      } else {
+        alert('Failed to delete: ' + (json.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const checkIsApproved = (p) => {
     return p.status === 'Approved' || p.status?.startsWith('Settled');
@@ -297,7 +317,7 @@ export default function PensionDashboardPage() {
                   </svg>
                   <input
                     className="search-input"
-                    placeholder="Search name, code, worksheet..."
+                    placeholder="Search name, code, letter..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     style={{ width: 220 }}
@@ -335,13 +355,9 @@ export default function PensionDashboardPage() {
                       <th style={{ width: 40 }}>#</th>
                       <th>Employee</th>
                       <th>Taluka</th>
-                      <th>Worksheet No.</th>
-                      <th>Worksheet Date</th>
                       <th>Current Status</th>
                       <th>Current Handler</th>
-                      <th>Submitted By</th>
-                      <th>Last Action</th>
-                      <th style={{ width: 60 }}>Action</th>
+                      <th style={{ width: 100 }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -352,10 +368,7 @@ export default function PensionDashboardPage() {
                         <tr key={prop.id} className={isPendingAction ? 'pension-row-urgent' : ''}>
                           <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{idx + 1}</td>
                           <td>
-                            <Link href={`/employees/${prop.teacher_id}`} className="pension-emp-link">
-                              <div className="pension-avatar">
-                                {prop.teacher_name?.charAt(0)?.toUpperCase() || '?'}
-                              </div>
+                            <Link href={`/employees/${prop.teacher_id}`} className="pension-emp-link" style={{ display: 'block' }}>
                               <div>
                                 <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
                                   {prop.teacher_name}
@@ -370,16 +383,6 @@ export default function PensionDashboardPage() {
                             <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{prop.taluka}</span>
                           </td>
                           <td>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-orange)' }}>
-                              {prop.worksheet_no || '—'}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.8rem' }}>
-                              {formatDate(prop.worksheet_date)}
-                            </span>
-                          </td>
-                          <td>
                             <span className={`badge ${
                               checkIsApproved(prop) ? 'badge-green' : (prop.status?.startsWith('Queried') ? 'badge-red' : 'badge-blue')
                             }`}>
@@ -392,17 +395,42 @@ export default function PensionDashboardPage() {
                             </span>
                           </td>
                           <td>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{prop.submitted_by}</span>
-                          </td>
-                          <td>
-                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              {new Date(prop.updated_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                            </span>
-                          </td>
-                          <td>
-                            <Link href={`/employees/${prop.teacher_id}`} className="btn btn-primary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>
-                              {isPendingAction ? 'Process' : 'View'}
-                            </Link>
+                            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                              <Link href={`/employees/${prop.teacher_id}`} className="btn btn-primary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>
+                                {isPendingAction ? 'Process' : 'View'}
+                              </Link>
+                              {(role === 'DPEO' || role === 'DPPF') && (
+                                <button
+                                  title="Delete proposal"
+                                  disabled={deletingId === prop.id}
+                                  onClick={() => handleDeleteProposal(prop)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    width: '28px', height: '28px', borderRadius: '6px',
+                                    border: '1px solid #fecaca', background: '#fff',
+                                    cursor: deletingId === prop.id ? 'not-allowed' : 'pointer',
+                                    color: '#ef4444', transition: 'all 0.15s ease', flexShrink: 0
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+                                >
+                                  {deletingId === prop.id ? (
+                                    <span style={{
+                                      display: 'inline-block', width: '12px', height: '12px',
+                                      border: '2px solid #fca5a5', borderTopColor: '#ef4444',
+                                      borderRadius: '50%', animation: 'spin 0.7s linear infinite'
+                                    }} />
+                                  ) : (
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                      <polyline points="3 6 5 6 21 6"/>
+                                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                                      <path d="M10 11v6"/><path d="M14 11v6"/>
+                                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
