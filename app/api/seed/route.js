@@ -109,6 +109,18 @@ export async function GET() {
       return String(val) || null;
     }
 
+    function calculateRetirementDate(dobStr) {
+      if (!dobStr) return null;
+      const match = dobStr.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (!match) return null;
+      const m = parseInt(match[2], 10);
+      const y = parseInt(match[3], 10);
+      const retirementYear = y + 58;
+      const lastDayDate = new Date(retirementYear, m, 0);
+      const lastDay = lastDayDate.getDate();
+      return `${String(lastDay).padStart(2, '0')}-${String(m).padStart(2, '0')}-${retirementYear}`;
+    }
+
     function safeBigInt(val) {
       if (!val || val === 0) return null;
       const n = typeof val === 'number' ? Math.round(val) : parseInt(val);
@@ -162,7 +174,7 @@ export async function GET() {
       recruitment_type: safeStr(r['ભરતી']),
       recruitment_date: excelDateToString(r['ભરતી તારીખ']),
       pay_level:        r['નિમ્ન / ઉચ્ચતર'] ? r['નિમ્ન / ઉચ્ચતર'].trim() : null,
-      retirement_date:  excelDateToString(r['નિવૃતિ તારીખ']),
+      retirement_date:  calculateRetirementDate(excelDateToString(r['જન્મ તારીખ'])),
       remarks:          safeStr(r['રીમાર્કસ']),
     }));
 

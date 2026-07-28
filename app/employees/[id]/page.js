@@ -92,9 +92,9 @@ export default function EmployeeDetailPage() {
 
       if (typeof window !== 'undefined') {
         const from = new URLSearchParams(window.location.search).get('from');
-        if (from === 'report') {
-          setBackUrl('/pension-report');
-          setBackLabel('Pension Report');
+        if (from === 'proposals') {
+          setBackUrl('/proposals');
+          setBackLabel('Proposals');
         }
       }
     }
@@ -125,7 +125,7 @@ export default function EmployeeDetailPage() {
         if (d.success && d.data && d.data.length > 0) {
           const prop = d.data[0];
           setProposal(prop);
-          setWorksheetNo(prop.worksheet_no || '');
+          setWorksheetNo('');
           setWorksheetDate(prop.worksheet_date || '');
         } else {
           setProposal(null);
@@ -149,9 +149,10 @@ export default function EmployeeDetailPage() {
       ? new Date(worksheetDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
       : 'N/A';
 
+    const remarksStr = clerkRemarks && clerkRemarks.trim() && clerkRemarks.trim() !== 'No remarks' ? `. Remarks: ${clerkRemarks.trim()}` : '';
     const newHistory = proposal
-      ? `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] Resubmitted by Group School on ${letterDate} with Letter No. ${letterNo}. Remarks: ${clerkRemarks || 'No remarks'}`
-      : `[${new Date().toLocaleString('en-IN')}] Proposal initiated by Group School on ${letterDate} with Letter No. ${letterNo}. Status: Submitted to TPEO.`;
+      ? `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] Resubmitted by Salary School on ${letterDate} with Letter No. ${letterNo}${remarksStr}`
+      : `[${new Date().toLocaleString('en-IN')}] Proposal initiated by Salary School on ${letterDate} with Letter No. ${letterNo}. Status: Submitted to TPEO.${remarksStr}`;
 
     const method = proposal ? 'PATCH' : 'POST';
     const endpoint = proposal ? `/api/proposals/${proposal.id}` : '/api/proposals';
@@ -160,7 +161,7 @@ export default function EmployeeDetailPage() {
       teacher_id: emp.id,
       teacher_name: emp.name_english,
       teacher_code: emp.teacher_code,
-      submitted_by: 'Group School',
+      submitted_by: 'Salary School',
       benefit_type: 'Pension',
       worksheet_no: worksheetNo,
       worksheet_date: worksheetDate,
@@ -216,8 +217,8 @@ export default function EmployeeDetailPage() {
         return;
       }
       nextStatus = 'Queried by TPEO';
-      nextHandler = 'Group School';
-      actionLabel = `Query raised by TPEO - ${userTaluka}`;
+      nextHandler = 'Salary School';
+      actionLabel = `Query raised by TPEO - ${userTaluka} on ${fmtLetterDate} with Letter No. ${fmtLetterNo}`;
     } else if (actionType === 'dpeo_approve') {
       nextStatus = 'Submitted to DPPF';
       nextHandler = 'DPPF';
@@ -229,24 +230,25 @@ export default function EmployeeDetailPage() {
       }
       nextStatus = 'Queried by DPEO';
       nextHandler = 'TPEO';
-      actionLabel = 'Query raised by DPEO (returned to TPEO)';
+      actionLabel = `Query raised by DPEO on ${fmtLetterDate} with Letter No. ${fmtLetterNo}`;
     } else if (actionType === 'dppf_query') {
       if (!approverRemarks.trim()) {
         alert('Please specify the DPPF query in remarks.');
         return;
       }
       nextStatus = 'Queried by DPPF';
-      nextHandler = 'TPEO';
-      actionLabel = 'Query raised by DPPF Officer (returned to TPEO)';
+      nextHandler = 'DPEO';
+      actionLabel = `Query raised by DPPF on ${fmtLetterDate} with Letter No. ${fmtLetterNo}`;
     } else if (actionType === 'dppf_settle') {
       nextStatus = 'Approved';
       nextHandler = 'Completed';
-      actionLabel = 'Pension Case Approved by DPPF Officer';
+      actionLabel = 'Pension Case Approved by DPPF';
     }
 
     setActionLoading(true);
 
-    const newHistory = `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] ${actionLabel}. Remarks: ${approverRemarks || 'No remarks'}`;
+    const actionRemarksStr = approverRemarks && approverRemarks.trim() && approverRemarks.trim() !== 'No remarks' ? `. Remarks: ${approverRemarks.trim()}` : '';
+    const newHistory = `${proposal.history || ''}\n[${new Date().toLocaleString('en-IN')}] ${actionLabel}${actionRemarksStr}`;
 
     fetch(`/api/proposals/${proposal.id}`, {
       method: 'PATCH',
@@ -572,11 +574,10 @@ export default function EmployeeDetailPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 1rem 1.5rem', position: 'relative', overflowX: 'auto', gap: '0.5rem', marginBottom: '0.5rem' }}>
                   {(() => {
                     const steps = [
-                      { label: 'Initiated', key: 'GS' },
+                      { label: 'Salary School', key: 'SS' },
                       { label: 'TPEO Review', key: 'TPEO' },
                       { label: 'DPEO Review', key: 'DPEO' },
-                      { label: 'DPPF Review', key: 'DPPF' },
-                      { label: 'Approved', key: 'Completed' }
+                      { label: 'DPPF / Settled', key: 'DPPF' }
                     ];
 
                     let activeIdx = 0;
@@ -590,7 +591,7 @@ export default function EmployeeDetailPage() {
                       activeIdx = 2;
                     } else if (proposal.current_handler === 'TPEO') {
                       activeIdx = 1;
-                    } else if (proposal.current_handler === 'Group School') {
+                    } else if (proposal.current_handler === 'Salary School' || proposal.current_handler === 'Group School') {
                       activeIdx = 0;
                     }
 
@@ -603,18 +604,18 @@ export default function EmployeeDetailPage() {
                       let borderStyle = '1px solid #e2e8f0';
 
                       if (isCompleted) {
-                        circleBg = '#eff6ff';
-                        circleColor = '#2563eb';
-                        borderStyle = '1px solid #bfdbfe';
+                        circleBg = '#ecfdf5';
+                        circleColor = '#059669';
+                        borderStyle = '1px solid #a7f3d0';
                       } else if (isActive) {
                         if (isQueried) {
                           circleBg = '#fef2f2';
                           circleColor = '#ef4444';
                           borderStyle = '1px solid #fecaca';
                         } else {
-                          circleBg = '#eff6ff';
-                          circleColor = '#3b82f6';
-                          borderStyle = '1px solid #bfdbfe';
+                          circleBg = '#ecfdf5';
+                          circleColor = '#059669';
+                          borderStyle = '1px solid #a7f3d0';
                         }
                       }
 
@@ -628,7 +629,7 @@ export default function EmployeeDetailPage() {
                               left: '-50%',
                               right: '50%',
                               height: '2px',
-                              background: idx <= activeIdx ? '#3b82f6' : '#e2e8f0',
+                              background: idx <= activeIdx ? '#059669' : '#e2e8f0',
                               zIndex: 0
                             }} />
                           )}
@@ -685,22 +686,22 @@ export default function EmployeeDetailPage() {
                         <form onSubmit={(e) => { e.preventDefault(); }}>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter No.</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter No.</label>
                               <input
                                 type="text"
                                 className="search-input"
-                                placeholder="WS-BHV-101"
-                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                                placeholder="Enter Letter No."
+                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                                 value={worksheetNo}
                                 onChange={(e) => setWorksheetNo(e.target.value)}
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter Date</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter Date</label>
                               <input
                                 type="date"
                                 className="search-input"
-                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                                 value={worksheetDate}
                                 onChange={(e) => setWorksheetDate(e.target.value)}
                               />
@@ -708,11 +709,11 @@ export default function EmployeeDetailPage() {
                           </div>
 
                           <div style={{ marginBottom: '0.85rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>TPEO Remarks / Query Details</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>TPEO Remarks / Query Details</label>
                             <textarea
                               placeholder="Enter action remarks or query details..."
                               className="search-input"
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#bfdbfe' }}
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#a7f3d0' }}
                               value={approverRemarks}
                               onChange={(e) => setApproverRemarks(e.target.value)}
                             />
@@ -733,25 +734,30 @@ export default function EmployeeDetailPage() {
                   {/* DPEO Actions Form */}
                   {role === 'DPEO' && proposal.current_handler === 'DPEO' && (
                     <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', marginBottom: '0.5rem' }}>
+                      {proposal.status?.includes('Queried by DPPF') && (
+                        <div style={{ padding: '0.6rem 0.8rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.75rem', color: '#b91c1c', fontWeight: 600, marginBottom: '0.75rem' }}>
+                          ↩ DPPF has raised a query. Send this query to TPEO for resolution.
+                        </div>
+                      )}
                       <form onSubmit={(e) => { e.preventDefault(); }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter No.</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter No.</label>
                             <input
                               type="text"
                               className="search-input"
-                              placeholder="WS-BHV-101"
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                              placeholder="Enter Letter No."
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                               value={worksheetNo}
                               onChange={(e) => setWorksheetNo(e.target.value)}
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter Date</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter Date</label>
                             <input
                               type="date"
                               className="search-input"
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                               value={worksheetDate}
                               onChange={(e) => setWorksheetDate(e.target.value)}
                             />
@@ -759,20 +765,20 @@ export default function EmployeeDetailPage() {
                         </div>
 
                         <div style={{ marginBottom: '0.85rem' }}>
-                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>DPEO Remarks / Query Details</label>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>DPEO Remarks / Query Details</label>
                           <textarea
                             placeholder="Enter remarks or queries..."
                             className="search-input"
-                            style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#bfdbfe' }}
+                            style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#a7f3d0' }}
                             value={approverRemarks}
                             onChange={(e) => setApproverRemarks(e.target.value)}
                           />
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: '#d97706', borderColor: '#fde68a', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px', justifyContent: 'center' }}>
-                            ↩ Return DPEO Query
+                            ↩ Send Query to TPEO
                           </button>
-                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_approve')} className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: '#2563eb', justifyContent: 'center' }}>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_approve')} className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: '#059669', justifyContent: 'center' }}>
                             Forward to DPPF ➔
                           </button>
                         </div>
@@ -790,7 +796,7 @@ export default function EmployeeDetailPage() {
                             <input
                               type="text"
                               className="search-input"
-                              placeholder="WS-BHV-101"
+                              placeholder="Enter Letter No."
                               style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#e9d5ff' }}
                               value={worksheetNo}
                               onChange={(e) => setWorksheetNo(e.target.value)}
@@ -809,7 +815,7 @@ export default function EmployeeDetailPage() {
                         </div>
 
                         <div style={{ marginBottom: '0.85rem' }}>
-                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.25rem' }}>DPPF Officer Remarks / Query Details</label>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.25rem' }}>Query Details</label>
                           <textarea
                             placeholder="Enter DPPF query details or approval remarks..."
                             className="search-input"
@@ -820,7 +826,7 @@ export default function EmployeeDetailPage() {
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
                           <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: '#a855f7', borderColor: '#d8b4fe', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px', justifyContent: 'center' }}>
-                            ↩ Raise DPPF Query & Return
+                            ↩ Raise DPPF Query & Return to DPEO
                           </button>
                           <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_settle')} className="btn btn-success btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)', justifyContent: 'center' }}>
                             ✓ Approve
@@ -830,8 +836,8 @@ export default function EmployeeDetailPage() {
                     </div>
                   )}
 
-                  {/* Group School Resubmit Actions */}
-                  {role === 'Group School' && proposal.current_handler === 'Group School' && (
+                  {/* Salary School Resubmit Actions */}
+                  {(role === 'Salary School' || role === 'Group School') && (proposal.current_handler === 'Salary School' || proposal.current_handler === 'Group School') && (
                     <div style={{ padding: '1.25rem', textAlign: 'center', background: '#fef2f2', borderRadius: '8px', border: '1px dashed #fca5a5', marginBottom: '0.5rem' }}>
                       <div style={{ fontSize: '0.78rem', color: '#b91c1c', fontWeight: 600, marginBottom: '0.75rem' }}>
                         ↩ TPEO has queried this proposal. Please make required changes and resubmit.
@@ -867,43 +873,43 @@ export default function EmployeeDetailPage() {
                       {!showProposalForm ? (
                         /* Default display: initiate action */
                         <div style={{ padding: '0.5rem 0', textAlign: 'center' }}>
-                          {role === 'Group School' ? (
+                          {(role === 'Salary School' || role === 'Group School') ? (
                             <button onClick={() => setShowProposalForm(true)} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', background: '#2563eb' }}>
                               📁 Initiate Pension Proposal
                             </button>
                           ) : role ? (
                             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
-                              ⚠️ No pension proposal has been submitted yet for this employee by the Group School.
+                              ⚠️ No pension proposal has been submitted yet for this employee by the Salary School.
                             </div>
                           ) : (
-                            <Link href="/login" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', color: '#2563eb', borderColor: '#bfdbfe' }}>
-                              🔒 Sign In as Group School to Propose
+                            <Link href="/login" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', color: '#2563eb', borderColor: '#a7f3d0' }}>
+                              🔒 Sign In as Salary School to Propose
                             </Link>
                           )}
                         </div>
                       ) : (
-                        /* Group School Submission Form (Worksheet & Remarks only) */
+                        /* Salary School Submission Form (Worksheet & Remarks only) */
                         <form onSubmit={handleSaveProposal}>
 
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter No.</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter No.</label>
                               <input
                                 type="text"
                                 className="search-input"
-                                placeholder="WS-BHV-101"
-                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                                placeholder="Enter Letter No."
+                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                                 value={worksheetNo}
                                 onChange={(e) => setWorksheetNo(e.target.value)}
                                 required
                               />
                             </div>
                             <div>
-                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Letter Date</label>
+                              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter Date</label>
                               <input
                                 type="date"
                                 className="search-input"
-                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#bfdbfe' }}
+                                style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                                 value={worksheetDate}
                                 onChange={(e) => setWorksheetDate(e.target.value)}
                                 required
@@ -982,29 +988,39 @@ export default function EmployeeDetailPage() {
                           boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.08)'
                         }} />
                         
-                        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.2rem' }}>
-                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#1e3a8a' }}>
-                            {textStr.split('. Remarks:')[0]}
-                          </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
-                            {timeStr}
-                          </span>
-                        </div>
-                        
-                        {textStr.includes('. Remarks:') && (
-                          <div style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--text-secondary)',
-                            background: '#f8fafc',
-                            padding: '0.5rem 0.75rem',
-                            borderRadius: '6px',
-                            borderLeft: '2.5px solid #2563eb',
-                            fontStyle: 'italic',
-                            marginTop: '0.25rem'
-                          }}>
-                            Remarks: {textStr.split('. Remarks:')[1] || 'No remarks'}
-                          </div>
-                        )}
+                        {(() => {
+                          const hasRemarks = textStr.includes('. Remarks:');
+                          const remarkVal = hasRemarks ? textStr.split('. Remarks:')[1]?.trim() : '';
+                          const shouldShowRemarks = hasRemarks && remarkVal && remarkVal !== 'No remarks' && remarkVal !== 'N/A';
+
+                          return (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#064e3b' }}>
+                                  {textStr.split('. Remarks:')[0]}
+                                </span>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                  {timeStr}
+                                </span>
+                              </div>
+                              
+                              {shouldShowRemarks && (
+                                <div style={{
+                                  fontSize: '0.75rem',
+                                  color: '#065f46',
+                                  background: '#f0fdf4',
+                                  padding: '0.5rem 0.75rem',
+                                  borderRadius: '6px',
+                                  borderLeft: '2.5px solid #059669',
+                                  fontStyle: 'italic',
+                                  marginTop: '0.25rem'
+                                }}>
+                                  Remarks: {remarkVal}
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     );
                   })}

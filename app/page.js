@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
@@ -21,27 +21,44 @@ function formatDate(dateStr) {
   return dateStr;
 }
 
+function getRetirementYear(p) {
+  const tryDate = p.worksheet_date || p.created_at || '';
+  if (!tryDate) return null;
+  const isoMatch = String(tryDate).match(/^(\d{4})-\d{2}-\d{2}/);
+  if (isoMatch) return parseInt(isoMatch[1]);
+  const dmy = String(tryDate).match(/^\d{2}-\d{2}-(\d{4})/);
+  if (dmy) return parseInt(dmy[1]);
+  if (tryDate instanceof Date || (typeof tryDate === 'string' && tryDate.length > 7)) {
+    const d = new Date(tryDate);
+    if (!isNaN(d.getTime())) return d.getFullYear();
+  }
+  return null;
+}
+
 export default function PensionDashboardPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
-  const [subTab, setSubTab] = useState('pending'); // 'pending' | 'approved' | 'all'
-  const [filterType, setFilterType] = useState('all'); // 'all' | 'action_required' | 'queried'
+  const [yearFilter, setYearFilter] = useState(null);
+  const [handlerFilter, setHandlerFilter] = useState(null);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [taluka, setTaluka] = useState('');
 
   // Authenticated user context
   const [role, setRole] = useState(null);
   const [userTaluka, setUserTaluka] = useState(null);
-  const [deletingId, setDeletingId] = useState(null);
+  const [userSalarySchool, setUserSalarySchool] = useState(null);
+
+  // Retire employee list (from teachers table, shown when clicking "No. of Employees" in summary)
+  const [retireYear, setRetireYear] = useState(null);      // active year clicked
+  const [retireEmployees, setRetireEmployees] = useState([]); // fetched teachers
+  const [retireLoading, setRetireLoading] = useState(false);
 
   const TALUKA_LIST = [
-    'Bhavnagar', 'Gariadhar', 'Ghogha', 'Jesar', 'Mahuva',
-    'Palitana', 'Shihor', 'Talaja', 'Umrala', 'Vallabhipur',
+    'BHAVNAGAR', 'GARIYADHAR', 'GHOGHA', 'JESAR', 'MAHUVA',
+    'PALITANA', 'SHIHOR', 'TALAJA', 'UMRALA', 'VALLBHIPUR',
   ];
 
-  // Fetch role and taluka
+  // Fetch role, taluka, and salary school
   useEffect(() => {
     const savedRole = localStorage.getItem('user_role');
     if (!savedRole) {
@@ -49,6 +66,7 @@ export default function PensionDashboardPage() {
     } else {
       setRole(savedRole);
       setUserTaluka(localStorage.getItem('user_taluka'));
+      setUserSalarySchool(localStorage.getItem('user_salary_school'));
       setAuthChecked(true);
     }
   }, [router]);
@@ -72,71 +90,59 @@ export default function PensionDashboardPage() {
     fetchProposals();
   }, [fetchProposals]);
 
-  const handleDeleteProposal = async (prop) => {
-    const confirmMsg = `Delete pension proposal for ${prop.teacher_name}?\n\nThis action cannot be undone.`;
-    if (!window.confirm(confirmMsg)) return;
-    setDeletingId(prop.id);
+  // Fetch teachers retiring in a specific year or total (from teachers table)
+  const fetchRetireEmployees = useCallback(async (yr) => {
+    setRetireLoading(true);
     try {
-      const res = await fetch(`/api/proposals/${prop.id}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (json.success) {
-        setProposals(prev => prev.filter(p => p.id !== prop.id));
-      } else {
-        alert('Failed to delete: ' + (json.error || 'Unknown error'));
+      let queryParams = [`limit=1000`];
+      if (yr === 'Total') {
+        queryParams.push(`years=2026,2027,2028`);
+      } else if (yr) {
+        queryParams.push(`year=${yr}`);
       }
+      if (role === 'TPEO' && userTaluka) {
+        queryParams.push(`taluka=${encodeURIComponent(userTaluka)}`);
+      }
+      if (role === 'Salary School' && userSalarySchool) {
+        queryParams.push(`salary_school=${encodeURIComponent(userSalarySchool)}`);
+      }
+      const res = await fetch(`/api/pension?${queryParams.join('&')}`);
+      const json = await res.json();
+      setRetireEmployees(json.data || []);
     } catch (err) {
-      alert('Error: ' + err.message);
+      console.error(err);
+      setRetireEmployees([]);
     } finally {
-      setDeletingId(null);
+      setRetireLoading(false);
     }
-  };
+  }, [role, userTaluka, userSalarySchool]);
 
-  const checkIsApproved = (p) => {
-    return p.status === 'Approved' || p.status?.startsWith('Settled');
-  };
+  // Toggle retire employees list for a given year
+  const handleYearEmployeesClick = useCallback((yr) => {
+    if (retireYear === yr) {
+      // Deselect — go back to proposals view
+      setRetireYear(null);
+      setRetireEmployees([]);
+    } else {
+      setRetireYear(yr);
+      setYearFilter(null);
+      setHandlerFilter(null);
+      fetchRetireEmployees(yr);
+    }
+  }, [retireYear, fetchRetireEmployees]);
 
-  // Helper check for action required
-  const checkIsPendingAction = (p) => {
-    if (checkIsApproved(p)) return false;
-    if (role === 'TPEO') return p.current_handler === 'TPEO' && p.taluka?.toUpperCase() === userTaluka?.toUpperCase();
-    if (role === 'DPEO') return p.current_handler === 'DPEO';
-    if (role === 'Group School') return p.current_handler === 'Group School';
-    if (role === 'DPPF') return p.current_handler === 'DPPF' || p.current_handler === 'DPPF / Settle';
-    return false;
-  };
+  const checkIsApproved = (p) => p.status === 'Approved' || p.status?.startsWith('Settled');
 
-  // Client-side filtering
-  const filteredProposals = proposals.filter((p) => {
-    // 1. Pending vs Approved Tab check
-    const isApproved = checkIsApproved(p);
-    if (subTab === 'pending' && isApproved) return false;
-    if (subTab === 'approved' && !isApproved) return false;
-
-    // 2. Quick Stat Card Filter Types
-    if (filterType === 'action_required' && !checkIsPendingAction(p)) return false;
-    if (filterType === 'queried' && !p.status?.startsWith('Queried')) return false;
-
-    // 3. Search filter
-    const matchesSearch =
-      !search ||
-      p.teacher_name?.toLowerCase().includes(search.toLowerCase()) ||
-      String(p.teacher_code).includes(search) ||
-      p.worksheet_no?.toLowerCase().includes(search.toLowerCase());
-
-    // 4. Taluka filter
-    const matchesTaluka = !taluka || p.taluka?.toUpperCase() === taluka?.toUpperCase();
-
-    // 5. Role-based visibility
-    const matchesRoleTaluka = role !== 'TPEO' || p.taluka?.toUpperCase() === userTaluka?.toUpperCase();
-
-    return matchesSearch && matchesTaluka && matchesRoleTaluka;
+  // Jurisdiction rule scoping for summary table proposal counts
+  const roleScopedProposals = proposals.filter((p) => {
+    if (role === 'TPEO' && userTaluka) {
+      return p.taluka?.toUpperCase() === userTaluka.toUpperCase();
+    }
+    if (role === 'Salary School' && userSalarySchool) {
+      return p.salary_school?.toUpperCase() === userSalarySchool.toUpperCase();
+    }
+    return true;
   });
-
-  // Stats calculation
-  const totalCount = proposals.length;
-  const pendingActionCount = proposals.filter(checkIsPendingAction).length;
-  const queriedCount = proposals.filter(p => p.status?.startsWith('Queried')).length;
-  const approvedCount = proposals.filter(checkIsApproved).length;
 
   if (!authChecked) {
     return (
@@ -154,7 +160,15 @@ export default function PensionDashboardPage() {
         <div className="topbar">
           <div>
             <div className="topbar-title">🏛️ Pension Dashboard</div>
-            <div className="topbar-subtitle">Pending and Approved Pension Proposals workflow management</div>
+            <div className="topbar-subtitle">
+              {role === 'TPEO'
+                ? `Jurisdiction: TPEO - ${userTaluka || 'Taluka'} (Employees of ${userTaluka || 'Taluka'} Taluka)`
+                : role === 'Salary School'
+                ? `Jurisdiction: Salary School - ${userSalarySchool || 'Pay Center'} (Schools under ${userSalarySchool || 'Pay Center'})`
+                : role === 'DPEO' || role === 'DPPF'
+                ? `Jurisdiction: ${role} (All District Employees under DPEO & DPPF)`
+                : 'Pending and Approved Pension Proposals workflow management'}
+            </div>
           </div>
           <div className="topbar-actions">
             <button onClick={fetchProposals} className="btn btn-ghost btn-sm" disabled={loading}>
@@ -165,295 +179,497 @@ export default function PensionDashboardPage() {
 
         <div className="page-container" style={{ paddingTop: '1.5rem' }}>
 
-          {/* ── Stats Row with Interactive Links ──────────────────────── */}
-          <div className="pension-stats-row fade-in">
-            {/* Total Proposals */}
-            <div
-              className={`pension-stat-card pension-stat-blue ${subTab === 'all' && filterType === 'all' ? 'active-stat' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => { setSubTab('all'); setFilterType('all'); }}
-              title="Click to view all proposals (Total count)"
-            >
-              <div className="pension-stat-icon">📂</div>
-              <div className="pension-stat-body">
-                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-primary)' }}>
-                  {totalCount}
-                </div>
-                <div className="pension-stat-label">Total Proposals</div>
-              </div>
-            </div>
+          {/* ── Year-wise Retirement Summary Table (Interactive Filter) ────── */}
+          <RetirementSummaryTable
+            proposals={roleScopedProposals}
+            yearFilter={yearFilter}
+            setYearFilter={setYearFilter}
+            handlerFilter={handlerFilter}
+            setHandlerFilter={setHandlerFilter}
+            role={role}
+            userTaluka={userTaluka}
+            userSalarySchool={userSalarySchool}
+            retireYear={retireYear}
+            onYearEmployeesClick={handleYearEmployeesClick}
+          />
 
-            {/* Requires Your Action */}
-            <div
-              className={`pension-stat-card pension-stat-red ${filterType === 'action_required' ? 'active-stat' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => { setSubTab('pending'); setFilterType('action_required'); }}
-              title="Click to filter proposals requiring your action"
-            >
-              <div className="pension-stat-icon">⚡</div>
-              <div className="pension-stat-body">
-                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-red)' }}>
-                  {pendingActionCount}
-                </div>
-                <div className="pension-stat-label">Requires Your Action</div>
-              </div>
-            </div>
-
-            {/* Queried Cases */}
-            <div
-              className={`pension-stat-card pension-stat-orange ${filterType === 'queried' ? 'active-stat' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => { setSubTab('pending'); setFilterType('queried'); }}
-              title="Click to filter queried cases"
-            >
-              <div className="pension-stat-icon">❓</div>
-              <div className="pension-stat-body">
-                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-orange)' }}>
-                  {queriedCount}
-                </div>
-                <div className="pension-stat-label">Queried Cases</div>
-              </div>
-            </div>
-
-            {/* Approved & Settled */}
-            <div
-              className={`pension-stat-card pension-stat-green ${subTab === 'approved' ? 'active-stat' : ''}`}
-              style={{ cursor: 'pointer' }}
-              onClick={() => { setSubTab('approved'); setFilterType('all'); }}
-              title="Click to view approved & settled cases"
-            >
-              <div className="pension-stat-icon">✅</div>
-              <div className="pension-stat-body">
-                <div className="pension-stat-value" style={{ textDecoration: 'underline', color: 'var(--accent-green)' }}>
-                  {approvedCount}
-                </div>
-                <div className="pension-stat-label">Approved & Settled</div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Tab Bar ────────────────────────────────────────────────── */}
-          <div className="pension-tabs fade-in stagger-1">
-            <button
-              className={`pension-tab ${subTab === 'pending' ? 'active' : ''}`}
-              onClick={() => { setSubTab('pending'); setFilterType('all'); }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="12 6 12 16 14"/>
-              </svg>
-              Pending Proposals
-              {(totalCount - approvedCount) > 0 && (
-                <span className="pension-tab-badge" style={{ background: 'var(--accent-orange)' }}>
-                  {totalCount - approvedCount}
-                </span>
-              )}
-            </button>
-            <button
-              className={`pension-tab ${subTab === 'approved' ? 'active' : ''}`}
-              onClick={() => { setSubTab('approved'); setFilterType('all'); }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                <polyline points="22 4 12 14.01 9 11.01"/>
-              </svg>
-              Approved Proposals
-              {approvedCount > 0 && (
-                <span className="pension-tab-badge" style={{ background: 'var(--accent-green)', color: 'white' }}>
-                  {approvedCount}
-                </span>
-              )}
-            </button>
-            <button
-              className={`pension-tab ${subTab === 'all' ? 'active' : ''}`}
-              onClick={() => { setSubTab('all'); setFilterType('all'); }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              All Proposals
-              {totalCount > 0 && (
-                <span className="pension-tab-badge" style={{ background: 'var(--accent-primary)', color: 'white' }}>
-                  {totalCount}
-                </span>
-              )}
-            </button>
-          </div>
-
-          {/* ── Main Table Card ────────────────────────────────────────── */}
-          <div className="table-card fade-in stagger-2">
-            <div className="table-header">
-              <div>
-                <div className="table-title">
-                  {subTab === 'pending' && filterType === 'all' && '📁 Pending Pension Proposals'}
-                  {subTab === 'pending' && filterType === 'action_required' && '⚡ Action Required Proposals'}
-                  {subTab === 'pending' && filterType === 'queried' && '❓ Queried Pension Cases'}
-                  {subTab === 'approved' && '✅ Approved Pension Proposals (Settled)'}
-                  {subTab === 'all' && '📂 All Pension Proposals'}
-                </div>
-                <div className="table-meta">
-                  {filteredProposals.length} records found
-                  {(filterType !== 'all' || subTab === 'all') && (
+          {/* ── Show retire employees list OR proposals depending on what was clicked ── */}
+          {retireYear ? (
+            /* ── Retire Employees Table (from teachers table) ────────────── */
+            <div className="table-card fade-in stagger-2">
+              <div className="table-header">
+                <div>
+                  <div className="table-title">
+                    👥 Employees Retiring {retireYear === 'Total' ? 'in Total (All Years)' : `in ${retireYear}`}
+                  </div>
+                  <div className="table-meta">
+                    {retireLoading ? 'Loading…' : `${retireEmployees.length} employees found`}
                     <button
-                      onClick={() => { setSubTab('pending'); setFilterType('all'); }}
+                      onClick={() => { setRetireYear(null); setRetireEmployees([]); }}
                       className="btn btn-ghost btn-sm"
-                      style={{ marginLeft: '0.75rem', padding: '0.1rem 0.4rem', fontSize: '0.72rem' }}
+                      style={{ marginLeft: '0.75rem', padding: '0.1rem 0.5rem', fontSize: '0.72rem', color: '#ea580c' }}
                     >
-                      Reset Filters ✕
+                      ← Back to Proposals
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
 
-              {/* Toolbar */}
-              <div className="table-toolbar">
-                {/* Search */}
-                <div className="search-wrapper">
-                  <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-                  </svg>
-                  <input
-                    className="search-input"
-                    placeholder="Search name, code, letter..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    style={{ width: 220 }}
-                  />
+              {retireLoading ? (
+                <div className="loading-overlay">
+                  <div className="loading-spinner" style={{ borderTopColor: 'var(--accent-primary)', borderColor: 'var(--border)', width: 32, height: 32 }}/>
+                  <span>Loading employees…</span>
                 </div>
-
-                {/* Taluka filter */}
-                <select className="filter-select" value={taluka} onChange={e => setTaluka(e.target.value)}>
-                  <option value="">All Talukas</option>
-                  {TALUKA_LIST.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
-
-            {/* Table */}
-            {loading ? (
-              <div className="loading-overlay">
-                <div className="loading-spinner" style={{ borderTopColor: 'var(--accent-primary)', borderColor: 'var(--border)', width: 32, height: 32 }}/>
-                <span>Loading proposals…</span>
-              </div>
-            ) : filteredProposals.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-icon">📁</div>
-                <div className="empty-title">No proposals found</div>
-                <p>There are no proposals matching your current selection.</p>
-                <button onClick={() => { setSubTab('all'); setFilterType('all'); setSearch(''); setTaluka(''); }} className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem' }}>
-                  Show All Proposals
-                </button>
-              </div>
-            ) : (
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 40 }}>#</th>
-                      <th>Employee</th>
-                      <th>Taluka</th>
-                      <th>Current Status</th>
-                      <th>Current Handler</th>
-                      <th style={{ width: 100 }}>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredProposals.map((prop, idx) => {
-                      const isPendingAction = checkIsPendingAction(prop);
-
-                      return (
-                        <tr key={prop.id} className={isPendingAction ? 'pension-row-urgent' : ''}>
+              ) : retireEmployees.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-icon">👥</div>
+                  <div className="empty-title">No employees found</div>
+                  <p>No employees have retirement date in {retireYear}.</p>
+                </div>
+              ) : (
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }}>#</th>
+                        <th>Employee</th>
+                        <th>Taluka</th>
+                        <th>School</th>
+                        <th>Retirement Date</th>
+                        <th>Proposal Status</th>
+                        <th style={{ width: 80 }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {retireEmployees.map((emp, idx) => (
+                        <tr key={emp.id}>
                           <td style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{idx + 1}</td>
                           <td>
-                            <Link href={`/employees/${prop.teacher_id}`} className="pension-emp-link" style={{ display: 'block' }}>
-                              <div>
-                                <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
-                                  {prop.teacher_name}
-                                </div>
-                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                  #{prop.teacher_code}
-                                </div>
-                              </div>
+                            <Link href={`/employees/${emp.id}`} className="pension-emp-link" style={{ display: 'block' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.82rem' }}>{emp.name_english}</div>
+                              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>#{emp.teacher_code}</div>
                             </Link>
                           </td>
+                          <td><span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{emp.taluka}</span></td>
+                          <td><span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{emp.school_name || '—'}</span></td>
                           <td>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{prop.taluka}</span>
-                          </td>
-                          <td>
-                            <span className={`badge ${
-                              checkIsApproved(prop) ? 'badge-green' : (prop.status?.startsWith('Queried') ? 'badge-red' : 'badge-blue')
-                            }`}>
-                              {prop.status}
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ea580c' }}>
+                              {emp.retirement_date || '—'}
                             </span>
                           </td>
                           <td>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                              {prop.current_handler}
-                            </span>
+                            {emp.proposal_status ? (
+                              <span className={`badge ${
+                                emp.proposal_status === 'Approved' || emp.proposal_status?.startsWith('Settled')
+                                  ? 'badge-green'
+                                  : emp.proposal_status?.startsWith('Queried')
+                                  ? 'badge-red'
+                                  : 'badge-blue'
+                              }`}>{emp.proposal_status}</span>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No proposal</span>
+                            )}
                           </td>
                           <td>
-                            <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-                              <Link href={`/employees/${prop.teacher_id}`} className="btn btn-primary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>
-                                {isPendingAction ? 'Process' : 'View'}
-                              </Link>
-                              {(role === 'DPEO' || role === 'DPPF') && (
-                                <button
-                                  title="Delete proposal"
-                                  disabled={deletingId === prop.id}
-                                  onClick={() => handleDeleteProposal(prop)}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    width: '28px', height: '28px', borderRadius: '6px',
-                                    border: '1px solid #fecaca', background: '#fff',
-                                    cursor: deletingId === prop.id ? 'not-allowed' : 'pointer',
-                                    color: '#ef4444', transition: 'all 0.15s ease', flexShrink: 0
-                                  }}
-                                  onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
-                                >
-                                  {deletingId === prop.id ? (
-                                    <span style={{
-                                      display: 'inline-block', width: '12px', height: '12px',
-                                      border: '2px solid #fca5a5', borderTopColor: '#ef4444',
-                                      borderRadius: '50%', animation: 'spin 0.7s linear infinite'
-                                    }} />
-                                  ) : (
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                      <polyline points="3 6 5 6 21 6"/>
-                                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                                      <path d="M10 11v6"/><path d="M14 11v6"/>
-                                      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                                    </svg>
-                                  )}
-                                </button>
-                              )}
-                            </div>
+                            <Link href={`/employees/${emp.id}`} className="btn btn-primary btn-sm" style={{ padding: '0.2rem 0.5rem', fontSize: '0.72rem' }}>
+                              View
+                            </Link>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Help legend */}
-          <div className="pension-legend fade-in stagger-3">
-            <div className="pension-legend-item">
-              <div className="pension-legend-dot" style={{ background: 'rgba(245,158,11,0.15)' }}/>
-              <span>Highlight indicates proposal requires action from your role</span>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-            <div className="pension-legend-item" style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              💡 Click stat numbers to filter proposals
-            </div>
-          </div>
-
+          ) : null}
         </div>
       </main>
     </div>
   );
 }
+
+function RetirementSummaryTable({ proposals, role, userTaluka, userSalarySchool, retireYear, onYearEmployeesClick }) {
+  const router = useRouter();
+  const YEARS = [2026, 2027, 2028];
+
+  // Actual teacher retirement counts per year (from teachers table via API)
+  const [teacherCounts, setTeacherCounts] = useState({});
+  const [countsLoading, setCountsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchTeacherCounts() {
+      setCountsLoading(true);
+      try {
+        let queryParams = [];
+        if (role === 'TPEO' && userTaluka) {
+          queryParams.push(`taluka=${encodeURIComponent(userTaluka)}`);
+        }
+        if (role === 'Salary School' && userSalarySchool) {
+          queryParams.push(`salary_school=${encodeURIComponent(userSalarySchool)}`);
+        }
+        const queryString = queryParams.length > 0 ? `?${queryParams.join('&')}` : '';
+        const res = await fetch(`/api/pension/summary${queryString}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const map = {};
+          json.data.forEach(d => { map[d.year] = d.total_employees; });
+          setTeacherCounts(map);
+        }
+      } catch (e) {
+        console.error('Failed to fetch teacher retirement counts', e);
+      } finally {
+        setCountsLoading(false);
+      }
+    }
+    if (role) fetchTeacherCounts();
+  }, [role, userTaluka, userSalarySchool]);
+
+  function getProposalYear(p) {
+    // Match proposals to employee's retirement year (or worksheet_date / created_at fallback)
+    const tryDate = p.retirement_date || p.worksheet_date || p.created_at || '';
+    if (!tryDate) return null;
+    const dmy = String(tryDate).match(/^\d{2}-\d{2}-(\d{4})/);
+    if (dmy) return parseInt(dmy[1]);
+    const isoMatch = String(tryDate).match(/^(\d{4})-\d{2}-\d{2}/);
+    if (isoMatch) return parseInt(isoMatch[1]);
+    if (tryDate instanceof Date || (typeof tryDate === 'string' && tryDate.length > 7)) {
+      const d = new Date(tryDate);
+      if (!isNaN(d.getTime())) return d.getFullYear();
+    }
+    return null;
+  }
+
+  const yearStats = useMemo(() => {
+    return YEARS.map(yr => {
+      // "No. of Employees Retired / To be Retired" = actual count from teachers table
+      const totalEmployees = teacherCounts[yr] ?? '…';
+      // Proposal stats from proposals table
+      const yearProps = proposals.filter(p => getProposalYear(p) === yr);
+      const proposalPrepared = yearProps.length;
+      const approved = yearProps.filter(p => p.status === 'Approved' || p.status?.startsWith('Settled')).length;
+      const pending = yearProps.filter(p => p.status !== 'Approved' && !p.status?.startsWith('Settled'));
+      const pendingSalarySchool = pending.filter(p => p.current_handler === 'Salary School').length;
+      const pendingTPEO = pending.filter(p => p.current_handler === 'TPEO').length;
+      const pendingDPEO = pending.filter(p => p.current_handler === 'DPEO').length;
+      const pendingDPPF = pending.filter(p => p.current_handler === 'DPPF' || p.current_handler === 'DPPF / Settle').length;
+      return { yr, totalEmployees, proposalPrepared, approved, pendingSalarySchool, pendingTPEO, pendingDPEO, pendingDPPF };
+    });
+  }, [proposals, teacherCounts]);
+
+  const totals = useMemo(() => yearStats.reduce((acc, r) => ({
+    totalEmployees: acc.totalEmployees + (typeof r.totalEmployees === 'number' ? r.totalEmployees : 0),
+    proposalPrepared: acc.proposalPrepared + r.proposalPrepared,
+    approved: acc.approved + r.approved,
+    pendingSalarySchool: acc.pendingSalarySchool + r.pendingSalarySchool,
+    pendingTPEO: acc.pendingTPEO + r.pendingTPEO,
+    pendingDPEO: acc.pendingDPEO + r.pendingDPEO,
+    pendingDPPF: acc.pendingDPPF + r.pendingDPPF,
+  }), { totalEmployees: 0, proposalPrepared: 0, approved: 0, pendingSalarySchool: 0, pendingTPEO: 0, pendingDPEO: 0, pendingDPPF: 0 }), [yearStats]);
+
+  const handleSelectYear = (yr) => {
+    router.push(`/proposals?tab=all&year=${yr}`);
+  };
+
+  const handleSelectHandler = (yr, handler) => {
+    if (handler === 'Approved') {
+      router.push(`/proposals?tab=approved&year=${yr}`);
+    } else {
+      router.push(`/proposals?tab=pending&handler=${handler}&year=${yr}`);
+    }
+  };
+
+  return (
+    <div className="fade-in stagger-1" style={{
+      marginBottom: '1.5rem',
+      borderRadius: '8px',
+      border: '1px solid #d4d4d4',
+      overflow: 'hidden',
+      background: '#ffffff',
+      fontFamily: "'Segoe UI', Aptos, -apple-system, BlinkMacSystemFont, Roboto, sans-serif"
+    }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{
+          borderCollapse: 'collapse',
+          width: '100%',
+          fontSize: '0.82rem',
+          color: '#242424',
+          background: '#ffffff'
+        }}>
+          <thead>
+            {/* Row 1 Header: Main Titles */}
+            <tr style={{ background: '#059669', color: '#ffffff' }}>
+              <th rowSpan={2} style={excelMainThStyle({ width: 80, borderRight: '2px solid #047857' })}>
+                Year
+              </th>
+              <th rowSpan={2} style={excelMainThStyle({ minWidth: 140, borderRight: '1px solid #10b981' })}>
+                No. of Employees<br />Retired / To be Retired
+              </th>
+              <th rowSpan={2} style={excelMainThStyle({ minWidth: 120, borderRight: '1px solid #10b981' })}>
+                Proposal<br />Prepared
+              </th>
+              <th rowSpan={2} style={excelMainThStyle({ minWidth: 100, borderRight: '2px solid #047857' })}>
+                Approved
+              </th>
+              <th colSpan={4} style={excelMainThStyle({ background: '#059669', borderBottom: '1px solid #10b981' })}>
+                Pending at
+              </th>
+            </tr>
+
+            {/* Row 2 Header: Pending sub-headers */}
+            <tr style={{ background: '#059669', color: '#ffffff' }}>
+              {['Salary School', 'TPEO', 'DPEO', 'DPPF'].map((label, idx) => (
+                <th key={label} style={excelSubThStyle({
+                  borderLeft: idx === 0 ? '2px solid #047857' : '1px solid #10b981'
+                })}>
+                  {label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {yearStats.map((row, idx) => {
+              return (
+                <tr key={row.yr} style={{ background: idx % 2 === 0 ? '#ffffff' : '#f0fdf4' }}>
+                  {/* Year — plain label, no click */}
+                  <td
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      color: '#064e3b',
+                      background: '#ecfdf5',
+                      borderRight: '2px solid #a7f3d0',
+                    })}
+                  >
+                    {row.yr}
+                  </td>
+
+                  {/* No. of Employees — fetches actual teacher list from teachers table */}
+                  <td
+                    onClick={() => onYearEmployeesClick(row.yr)}
+                    title="Click to view the full list of employees retiring this year"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      color: retireYear === row.yr ? '#059669' : '#064e3b',
+                      background: retireYear === row.yr ? '#d1fae5' : undefined,
+                      cursor: typeof row.totalEmployees === 'number' && row.totalEmployees > 0 ? 'pointer' : 'default',
+                      textDecoration: typeof row.totalEmployees === 'number' && row.totalEmployees > 0 ? 'underline' : 'none',
+                    })}
+                  >
+                    {row.totalEmployees}
+                  </td>
+
+                  {/* Proposal Prepared */}
+                  <td
+                    onClick={() => handleSelectYear(row.yr)}
+                    title="Click to view concerned proposals prepared"
+                    style={excelTdStyle({ textAlign: 'center', color: '#059669', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' })}
+                  >
+                    {row.proposalPrepared || '—'}
+                  </td>
+
+                  {/* Approved */}
+                  <td
+                    onClick={() => handleSelectHandler(row.yr, 'Approved')}
+                    title="Click to view approved concerned employees"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      color: '#047857',
+                      fontWeight: row.approved ? 600 : 400,
+                      borderRight: '2px solid #a7f3d0',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    })}
+                  >
+                    {row.approved || '—'}
+                  </td>
+
+                  {/* Salary School */}
+                  <td
+                    onClick={() => handleSelectHandler(row.yr, 'Salary School')}
+                    title="Click to filter concerned employees pending at Salary School"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      color: '#059669',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    })}
+                  >
+                    {row.pendingSalarySchool || '—'}
+                  </td>
+
+                  {/* TPEO */}
+                  <td
+                    onClick={() => handleSelectHandler(row.yr, 'TPEO')}
+                    title="Click to filter concerned employees pending at TPEO"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      color: '#059669',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    })}
+                  >
+                    {row.pendingTPEO || '—'}
+                  </td>
+
+                  {/* DPEO */}
+                  <td
+                    onClick={() => handleSelectHandler(row.yr, 'DPEO')}
+                    title="Click to filter concerned employees pending at DPEO"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      color: '#059669',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    })}
+                  >
+                    {row.pendingDPEO || '—'}
+                  </td>
+
+                  {/* DPPF */}
+                  <td
+                    onClick={() => handleSelectHandler(row.yr, 'DPPF')}
+                    title="Click to filter concerned employees pending at DPPF"
+                    style={excelTdStyle({
+                      textAlign: 'center',
+                      color: '#059669',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    })}
+                  >
+                    {row.pendingDPPF || '—'}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {/* Total Row — each cell clickable like per-year cells */}
+            <tr style={{ background: '#ecfdf5', borderTop: '2px solid #059669', borderBottom: '3px double #047857' }}>
+              {/* TOTAL label — plain, no click */}
+              <td style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#064e3b', borderRight: '2px solid #a7f3d0', letterSpacing: '0.04em' })}>
+                TOTAL
+              </td>
+
+              {/* No. of Employees total — click to view total list of retiring employees */}
+              <td
+                onClick={() => onYearEmployeesClick('Total')}
+                title="Click to view total list of employees retiring across all years"
+                style={excelTdStyle({
+                  textAlign: 'center',
+                  fontWeight: 800,
+                  color: retireYear === 'Total' ? '#047857' : '#059669',
+                  background: retireYear === 'Total' ? '#d1fae5' : undefined,
+                  fontSize: '0.9rem',
+                  cursor: typeof totals.totalEmployees === 'number' && totals.totalEmployees > 0 ? 'pointer' : 'default',
+                  textDecoration: typeof totals.totalEmployees === 'number' && totals.totalEmployees > 0 ? 'underline' : 'none',
+                })}
+              >
+                {totals.totalEmployees}
+              </td>
+
+              {/* Proposal Prepared total — click to show all proposals (clear filters) */}
+              <td
+                onClick={() => { router.push('/proposals?tab=all'); }}
+                title="Click to show all proposals across all years"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.proposalPrepared}
+              </td>
+
+              {/* Approved total */}
+              <td
+                onClick={() => { router.push('/proposals?tab=approved'); }}
+                title="Click to show all approved proposals"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#047857', borderRight: '2px solid #a7f3d0', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.approved}
+              </td>
+
+              {/* Salary School total */}
+              <td
+                onClick={() => { router.push('/proposals?tab=pending&handler=Salary School'); }}
+                title="Click to show all pending at Salary School"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.pendingSalarySchool}
+              </td>
+
+              {/* TPEO total */}
+              <td
+                onClick={() => { router.push('/proposals?tab=pending&handler=TPEO'); }}
+                title="Click to show all pending at TPEO"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.pendingTPEO}
+              </td>
+
+              {/* DPEO total */}
+              <td
+                onClick={() => { router.push('/proposals?tab=pending&handler=DPEO'); }}
+                title="Click to show all pending at DPEO"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.pendingDPEO}
+              </td>
+
+              {/* DPPF total */}
+              <td
+                onClick={() => { router.push('/proposals?tab=pending&handler=DPPF'); }}
+                title="Click to show all pending at DPPF"
+                style={excelTdStyle({ textAlign: 'center', fontWeight: 800, color: '#059669', cursor: 'pointer', textDecoration: 'underline' })}
+              >
+                {totals.pendingDPPF}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Table Style Helper Functions ──────────────────────────────────────────
+function excelMainThStyle(extra = {}) {
+  return {
+    padding: '0.55rem 0.75rem',
+    fontWeight: 700,
+    fontSize: '0.78rem',
+    color: '#ffffff',
+    background: '#059669',
+    borderRight: '1px solid #10b981',
+    borderBottom: '1px solid #10b981',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    ...extra
+  };
+}
+
+function excelSubThStyle(extra = {}) {
+  return {
+    padding: '0.45rem 0.6rem',
+    fontWeight: 600,
+    fontSize: '0.75rem',
+    color: '#ffffff',
+    background: '#059669',
+    borderRight: '1px solid #10b981',
+    borderBottom: '1px solid #10b981',
+    whiteSpace: 'nowrap',
+    textAlign: 'center',
+    ...extra
+  };
+}
+
+function excelTdStyle(extra = {}) {
+  return {
+    padding: '0.5rem 0.75rem',
+    borderRight: '1px solid #d1fae5',
+    borderBottom: '1px solid #d1fae5',
+    whiteSpace: 'nowrap',
+    verticalAlign: 'middle',
+    ...extra
+  };
+}
+
+

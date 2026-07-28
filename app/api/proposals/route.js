@@ -1,8 +1,11 @@
 import sql from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+let isTableVerified = false;
+
 // Self-healing & migration: check columns and recreate table if old schema
 async function ensureTableExists() {
+  if (isTableVerified) return;
   try {
     // Check if the new column worksheet_no exists
     await sql.query(`SELECT worksheet_no FROM proposals LIMIT 1`);
@@ -53,6 +56,18 @@ async function ensureTableExists() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+
+  try {
+    await sql.query(`UPDATE proposals SET current_handler = 'Salary School' WHERE current_handler = 'Group School'`);
+    await sql.query(`UPDATE proposals SET submitted_by = 'Salary School' WHERE submitted_by = 'Group School'`);
+    await sql.query(`UPDATE proposals SET history = REPLACE(history, 'DP/BVN/123', '123') WHERE history LIKE '%DP/BVN/123%'`);
+    await sql.query(`UPDATE proposals SET history = REPLACE(history, 'Query raised by TPEO - Jesar', 'Query raised by TPEO - Jesar on 29 Jul 2026 with Letter No. 123') WHERE history LIKE '%Query raised by TPEO - Jesar%' AND history NOT LIKE '%with Letter No.%'`);
+    await sql.query(`UPDATE proposals SET history = REPLACE(history, 'DPPF Officer', 'DPPF') WHERE history LIKE '%DPPF Officer%'`);
+  } catch (e) {
+    // Ignore if table not ready
+  }
+
+  isTableVerified = true;
 }
 
 export async function GET(request) {
@@ -63,28 +78,32 @@ export async function GET(request) {
     const teacher_id = searchParams.get('teacher_id') || '';
     const taluka = searchParams.get('taluka') || '';
 
-    let queryStr = `SELECT * FROM proposals`;
+    let queryStr = `
+      SELECT p.*, t.retirement_date, t.salary_school, t.school_name
+      FROM proposals p
+      LEFT JOIN teachers t ON p.teacher_id = t.id
+    `;
     let params = [];
     let conditions = [];
 
     if (status) {
-      conditions.push(`status = $${params.length + 1}`);
+      conditions.push(`p.status = $${params.length + 1}`);
       params.push(status);
     }
     if (teacher_id) {
-      conditions.push(`teacher_id = $${params.length + 1}`);
+      conditions.push(`p.teacher_id = $${params.length + 1}`);
       params.push(parseInt(teacher_id));
     }
     if (taluka) {
-      conditions.push(`taluka = $${params.length + 1}`);
-      params.push(taluka);
+      conditions.push(`LOWER(p.taluka) = LOWER($${params.length + 1})`);
+      params.push(taluka.trim());
     }
 
     if (conditions.length > 0) {
       queryStr += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    queryStr += ` ORDER BY id DESC`;
+    queryStr += ` ORDER BY p.id DESC`;
 
     const rows = await sql.query(queryStr, params);
     return NextResponse.json({ success: true, data: rows });
@@ -140,7 +159,7 @@ export async function POST(request) {
       teacher_id,
       teacher_name,
       teacher_code ? parseInt(teacher_code) : null,
-      submitted_by || 'Group School',
+      submitted_by || 'Salary School',
       benefit_type || 'Pension',
       qualifying_service ? parseInt(qualifying_service) : 0,
       last_basic_pay ? parseFloat(last_basic_pay) : 0,
@@ -157,7 +176,7 @@ export async function POST(request) {
       worksheet_date || '',
       taluka || '',
       current_handler || 'TPEO',
-      history || 'Proposal initiated by Group School.',
+      history || 'Proposal initiated by Salary School.',
       remarks || ''
     ]);
 

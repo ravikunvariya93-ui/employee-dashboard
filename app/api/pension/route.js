@@ -11,13 +11,29 @@ export async function GET(request) {
   const limit = parseInt(searchParams.get('limit') || '50');
   const offset = (page - 1) * limit;
 
+  const year = parseInt(searchParams.get('year') || '0');
+  const yearsParam = searchParams.get('years') || '';
+
   try {
     let conditions = [];
     let params = [];
     let paramIdx = 1;
 
-    // Date range condition
-    if (tab === 'upcoming') {
+    // Date range condition — years or year takes priority over tab
+    if (yearsParam) {
+      const yrsArr = yearsParam.split(',').map(y => parseInt(y.trim())).filter(y => !isNaN(y) && y > 0);
+      if (yrsArr.length > 0) {
+        conditions.push(
+          `(retirement_date ~ '^\\d{2}-\\d{2}-\\d{4}$' AND EXTRACT(YEAR FROM TO_DATE(retirement_date, 'DD-MM-YYYY')) IN (${yrsArr.join(',')}))`
+        );
+      }
+    } else if (year) {
+      conditions.push(
+        `(retirement_date ~ '^\\d{2}-\\d{2}-\\d{4}$' AND EXTRACT(YEAR FROM TO_DATE(retirement_date, 'DD-MM-YYYY')) = $${paramIdx})`
+      );
+      params.push(year);
+      paramIdx++;
+    } else if (tab === 'upcoming') {
       // Retiring in next 2 years (from today onwards)
       conditions.push(
         `(retirement_date ~ '^\\d{2}-\\d{2}-\\d{4}$' AND TO_DATE(retirement_date, 'DD-MM-YYYY') BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '2 years')`
@@ -29,6 +45,8 @@ export async function GET(request) {
       );
     }
 
+    const salary_school = searchParams.get('salary_school') || '';
+
     if (search) {
       conditions.push(
         `(name_english ILIKE $${paramIdx} OR name_gujarati ILIKE $${paramIdx} OR CAST(teacher_code AS TEXT) ILIKE $${paramIdx})`
@@ -37,8 +55,13 @@ export async function GET(request) {
       paramIdx++;
     }
     if (taluka) {
-      conditions.push(`taluka = $${paramIdx}`);
-      params.push(taluka);
+      conditions.push(`LOWER(taluka) = LOWER($${paramIdx})`);
+      params.push(taluka.trim());
+      paramIdx++;
+    }
+    if (salary_school) {
+      conditions.push(`LOWER(salary_school) = LOWER($${paramIdx})`);
+      params.push(salary_school.trim());
       paramIdx++;
     }
 
@@ -47,7 +70,7 @@ export async function GET(request) {
     const queryStr = `
       SELECT
         id, teacher_code, name_english, name_gujarati,
-        taluka, school_name, designation, salary_type,
+        taluka, salary_school, school_name, designation, salary_type,
         pay_7th, pay_level, dob, retirement_date, joined_school,
         (SELECT status FROM proposals WHERE teacher_id = teachers.id LIMIT 1) as proposal_status
       FROM teachers
