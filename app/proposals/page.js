@@ -27,7 +27,9 @@ function getProposalYearHelper(p) {
   return null;
 }
 
-export default function ProposalsPage() {
+export const dynamic = 'force-dynamic';
+
+function ProposalsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'pending';
@@ -384,5 +386,17 @@ export default function ProposalsPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ProposalsPage() {
+  return (
+    <React.Suspense fallback={
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f4fbf7' }}>
+        <div className="loading-spinner" />
+      </div>
+    }>
+      <ProposalsContent />
+    </React.Suspense>
   );
 }

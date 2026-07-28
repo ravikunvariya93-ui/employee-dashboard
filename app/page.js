@@ -289,9 +289,10 @@ export default function PensionDashboardPage() {
   );
 }
 
+const SUMMARY_YEARS = [2026, 2027, 2028];
+
 function RetirementSummaryTable({ proposals, role, userTaluka, userSalarySchool, retireYear, onYearEmployeesClick }) {
   const router = useRouter();
-  const YEARS = [2026, 2027, 2028];
 
   // Actual teacher retirement counts per year (from teachers table via API)
   const [teacherCounts, setTeacherCounts] = useState({});
@@ -341,7 +342,7 @@ function RetirementSummaryTable({ proposals, role, userTaluka, userSalarySchool,
   }
 
   const yearStats = useMemo(() => {
-    return YEARS.map(yr => {
+    return SUMMARY_YEARS.map(yr => {
       // "No. of Employees Retired / To be Retired" = actual count from teachers table
       const totalEmployees = teacherCounts[yr] ?? '…';
       // Proposal stats from proposals table
