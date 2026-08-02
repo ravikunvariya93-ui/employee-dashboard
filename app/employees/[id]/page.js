@@ -76,6 +76,10 @@ export default function EmployeeDetailPage() {
   const [backUrl, setBackUrl] = useState('/');
   const [backLabel, setBackLabel] = useState('Pension Dashboard');
 
+  // Letter View Modal states
+  const [viewingLetter, setViewingLetter] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+
   const benefits = getRetirementBenefits(emp);
 
   const [authChecked, setAuthChecked] = useState(false);
@@ -98,6 +102,12 @@ export default function EmployeeDetailPage() {
         }
       }
     }
+
+    // Fetch system users to get Gujarati office names & stamps for letters
+    fetch('/api/users')
+      .then(r => r.json())
+      .then(d => { if (d.success) setAllUsers(d.users || []); })
+      .catch(e => console.error('Users load error:', e));
   }, [router]);
 
   // Fetch teacher profile
@@ -327,15 +337,15 @@ export default function EmployeeDetailPage() {
   return (
     <div className="app-shell" style={{ fontFamily: "'Lexend', sans-serif" }}>
       <Sidebar />
-      <main className="main-content" style={{ background: '#f0f4f8' }}>
+      <main className="main-content" style={{ background: '#f4fbf7' }}>
         {/* Top Header Navigation */}
-        <div className="topbar" style={{ borderBottom: '1px solid #dbeafe', padding: '0 2rem', background: '#ffffff' }}>
+        <div className="topbar" style={{ borderBottom: '1px solid #a7f3d0', padding: '0 2rem', background: '#ffffff' }}>
           <div>
-            <div className="topbar-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e3a8a' }}>Profile Directory</div>
-            <div className="topbar-subtitle" style={{ fontSize: '0.72rem', color: '#60a5fa' }}>EduBVN School Network</div>
+            <div className="topbar-title" style={{ fontSize: '1.1rem', fontWeight: 700, color: '#064e3b' }}>Profile Directory</div>
+            <div className="topbar-subtitle" style={{ fontSize: '0.72rem', color: '#059669' }}>EduBVN School Network</div>
           </div>
           <div className="topbar-actions">
-            <Link href={backUrl} className="btn btn-ghost btn-sm" style={{ borderRadius: '8px', fontSize: '0.75rem', borderColor: '#bfdbfe', color: '#2563eb', background: '#eff6ff' }}>
+            <Link href={backUrl} className="btn btn-ghost btn-sm" style={{ borderRadius: '8px', fontSize: '0.75rem', borderColor: '#a7f3d0', color: '#059669', background: '#ecfdf5' }}>
               ← Return to {backLabel}
             </Link>
           </div>
@@ -343,27 +353,27 @@ export default function EmployeeDetailPage() {
 
         <div className="page-container" style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
           
-          {/* ── TOP HERO HEADER (Full Width Slate & Blue Gradient Banner) ── */}
+          {/* ── TOP HERO HEADER (Full Width Emerald & Forest Green Gradient Banner) ── */}
           <div className="fade-in" style={{
-            background: 'linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)',
+            background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%)',
             borderRadius: '16px',
             padding: '2.25rem 2.5rem',
             color: '#ffffff',
-            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.15)',
+            boxShadow: '0 10px 30px rgba(5, 150, 105, 0.2)',
             marginBottom: '2rem',
             position: 'relative',
             overflow: 'hidden'
           }}>
             {/* Soft decorative background circles */}
-            <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
-            <div style={{ position: 'absolute', bottom: '-80px', left: '20%', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
+            <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
+            <div style={{ position: 'absolute', bottom: '-80px', left: '20%', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
             
             <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1.5rem' }}>
               <div>
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, lineHeight: 1.2 }}>
                   {emp.name_english}
                 </h1>
-                <div style={{ fontSize: '1.1rem', color: '#93c5fd', marginTop: '0.25rem', fontWeight: 500 }}>
+                <div style={{ fontSize: '1.1rem', color: '#a7f3d0', marginTop: '0.25rem', fontWeight: 500 }}>
                   {emp.name_gujarati}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
@@ -382,13 +392,13 @@ export default function EmployeeDetailPage() {
               </div>
 
               <div style={{ textAlign: 'right', minWidth: '150px' }}>
-                <div style={{ fontSize: '0.72rem', color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
+                <div style={{ fontSize: '0.72rem', color: '#a7f3d0', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
                   Current Scale Basic
                 </div>
                 <div style={{ fontSize: '2.25rem', fontWeight: 800, color: '#ffffff', lineHeight: 1 }}>
                   {emp.pay_7th ? `₹${Number(emp.pay_7th).toLocaleString('en-IN')}` : '—'}
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#dbeafe', marginTop: '0.35rem' }}>
+                <div style={{ fontSize: '0.7rem', color: '#d1fae5', marginTop: '0.35rem' }}>
                   7th Pay Grade Commission
                 </div>
               </div>
@@ -402,8 +412,8 @@ export default function EmployeeDetailPage() {
             <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
               
               {/* School Details Card (Left: Flex 1) */}
-              <div className="chart-card fade-in" style={{ flex: 1, minWidth: '320px', padding: '1.5rem', border: '1px solid #dbeafe', borderLeft: '4px solid #1d4ed8', background: '#ffffff', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#1e3a8a' }}>
+              <div className="chart-card fade-in" style={{ flex: 1, minWidth: '320px', padding: '1.5rem', border: '1px solid #a7f3d0', borderLeft: '4px solid #059669', background: '#ffffff', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#064e3b' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                     <polyline points="9 22 9 12 15 12 15 22" />
@@ -422,8 +432,8 @@ export default function EmployeeDetailPage() {
               </div>
 
               {/* Important Dates Card (Right: Flex 1) */}
-              <div className="chart-card fade-in" style={{ flex: 1, minWidth: '320px', padding: '1.5rem', border: '1px solid #dbeafe', borderLeft: '4px solid #60a5fa', background: '#ffffff', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#1e3a8a' }}>
+              <div className="chart-card fade-in" style={{ flex: 1, minWidth: '320px', padding: '1.5rem', border: '1px solid #a7f3d0', borderLeft: '4px solid #10b981', background: '#ffffff', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#064e3b' }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                     <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
@@ -434,28 +444,28 @@ export default function EmployeeDetailPage() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-                  <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Date of Birth</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.dob)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Recruitment Date</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.recruitment_date)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Joined District</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.joined_district)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Joined School</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.joined_school)}</strong>
                   </div>
-                  <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                  <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Full Salary Date</div>
                     <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.full_salary_date)}</strong>
                   </div>
                   {emp.district_transfer && (
-                    <div style={{ padding: '0.65rem 0.85rem', background: '#f8fafc', borderRadius: '8px' }}>
+                    <div style={{ padding: '0.65rem 0.85rem', background: '#f0fdf4', borderRadius: '8px' }}>
                       <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>District Transfer</div>
                       <strong style={{ fontSize: '0.82rem', color: 'var(--text-primary)' }}>{formatDate(emp.district_transfer)}</strong>
                     </div>
@@ -476,8 +486,8 @@ export default function EmployeeDetailPage() {
             </div>
 
             {/* ── ROW 2: SALARY & PAY CONFIGURATION (Full Width, 2 Sections) ── */}
-            <div className="chart-card fade-in" style={{ padding: '1.75rem 2rem', border: '1px solid #dbeafe', borderLeft: '4px solid #3b82f6', background: '#ffffff', borderRadius: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: '#1e3a8a' }}>
+            <div className="chart-card fade-in" style={{ padding: '1.75rem 2rem', border: '1px solid #a7f3d0', borderLeft: '4px solid #059669', background: '#ffffff', borderRadius: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem', color: '#064e3b' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <line x1="12" y1="1" x2="12" y2="23" /><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                 </svg>
@@ -489,7 +499,7 @@ export default function EmployeeDetailPage() {
               <div style={{ display: 'flex', gap: '3rem', flexWrap: 'wrap' }}>
                 {/* Section A: Core Pay Details (Left: Flex 1) */}
                 <div style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.35rem', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#047857', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.25rem' }}>
                     Core Pay Info
                   </div>
                   <DetailRow label="Salary Type" value={emp.salary_type} />
@@ -497,13 +507,13 @@ export default function EmployeeDetailPage() {
                   <DetailRow label="Grade Pay" value={emp.grade_pay} />
                   <DetailRow label="Pay Scheme" value={emp.pay_type} />
 
-                  <div style={{ background: '#eff6ff', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                    <span style={{ fontSize: '0.78rem', color: '#1e40af', fontWeight: 600 }}>7th Pay Basic</span>
-                    <strong style={{ fontSize: '1rem', color: '#1d4ed8', fontWeight: 700 }}>
+                  <div style={{ background: '#ecfdf5', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', border: '1px solid #a7f3d0' }}>
+                    <span style={{ fontSize: '0.78rem', color: '#065f46', fontWeight: 600 }}>7th Pay Basic</span>
+                    <strong style={{ fontSize: '1rem', color: '#047857', fontWeight: 700 }}>
                       {emp.pay_7th ? `₹${Number(emp.pay_7th).toLocaleString('en-IN')}` : '—'}
                     </strong>
                   </div>
-                  <div style={{ background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ background: '#f0fdf4', padding: '0.75rem 1rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>6th Pay Basic</span>
                     <strong style={{ fontSize: '#0.88rem', color: 'var(--text-secondary)' }}>
                       {emp.pay_6th ? `₹${Number(emp.pay_6th).toLocaleString('en-IN')}` : '—'}
@@ -513,7 +523,7 @@ export default function EmployeeDetailPage() {
 
                 {/* Section B: Higher Pay Scale Progression (Right: Flex 1) */}
                 <div style={{ flex: 1, minWidth: '300px', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.35rem', marginBottom: '0.25rem' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', color: '#047857', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.35rem', marginBottom: '0.25rem' }}>
                     Higher Pay Scale Progression
                   </div>
                   <DetailRow label="Higher Pay Scale" value={emp.higher_pay_scale} />
@@ -525,17 +535,17 @@ export default function EmployeeDetailPage() {
             </div>
 
             {/* ── ROW 3: PENSION TRACKER (Full Width) ─────────────────────────── */}
-            <div className="chart-card fade-in" style={{ padding: '1.75rem', border: '1px solid #bfdbfe', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(37, 99, 235, 0.04)' }}>
+            <div className="chart-card fade-in" style={{ padding: '1.75rem', border: '1px solid #a7f3d0', background: '#ffffff', borderRadius: '12px', boxShadow: '0 4px 20px rgba(5, 150, 105, 0.05)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ fontSize: '1.2rem', color: '#2563eb' }}>🏛️</span>
-                  <span style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#1e3a8a' }}>
+                  <span style={{ fontSize: '1.2rem', color: '#059669' }}>🏛️</span>
+                  <span style={{ fontWeight: 800, fontSize: '0.92rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#064e3b' }}>
                     Pension Tracker
                   </span>
                   {proposalLoading && (
                     <span style={{
                       display: 'inline-block', width: '14px', height: '14px',
-                      border: '2px solid #bfdbfe', borderTopColor: '#2563eb',
+                      border: '2px solid #a7f3d0', borderTopColor: '#059669',
                       borderRadius: '50%', animation: 'spin 0.8s linear infinite'
                     }} />
                   )}
@@ -543,7 +553,7 @@ export default function EmployeeDetailPage() {
                 
                 {proposalLoading ? null : proposal ? (
                   <span className={`badge ${
-                    proposal.status === 'Approved' ? 'badge-green' : (proposal.status?.startsWith('Queried') ? 'badge-red' : 'badge-blue')
+                    proposal.status === 'Approved' ? 'badge-green' : (proposal.status?.startsWith('Queried') ? 'badge-red' : 'badge-green')
                   }`} style={{ fontSize: '0.72rem', padding: '0.4rem 0.85rem', borderRadius: '8px', fontWeight: 700 }}>
                     {proposal.status}
                   </span>
@@ -649,7 +659,7 @@ export default function EmployeeDetailPage() {
                             fontWeight: 700,
                             zIndex: 1,
                             marginBottom: '0.4rem',
-                            boxShadow: isActive ? '0 0 12px rgba(59, 130, 246, 0.2)' : 'none'
+                            boxShadow: isActive ? '0 0 12px rgba(5, 150, 105, 0.3)' : 'none'
                           }}>
                             {isCompleted ? '✓' : idx + 1}
                           </div>
@@ -658,7 +668,7 @@ export default function EmployeeDetailPage() {
                           <span style={{
                             fontSize: '0.68rem',
                             fontWeight: isActive ? 700 : 500,
-                            color: isActive ? (isQueried ? '#ef4444' : '#2563eb') : (isCompleted ? '#1e3a8a' : '#94a3b8'),
+                            color: isActive ? (isQueried ? '#ef4444' : '#059669') : (isCompleted ? '#064e3b' : '#94a3b8'),
                             whiteSpace: 'nowrap'
                           }}>
                             {step.label}
@@ -673,11 +683,11 @@ export default function EmployeeDetailPage() {
               {/* Proposal Overview & Form details */}
               {proposal && !showProposalForm ? (
                 /* CASE: Proposal Exists & Not Editing */
-                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '1.25rem' }}>
+                <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1.25rem' }}>
 
                   {/* TPEO Actions Form */}
                   {role === 'TPEO' && proposal.current_handler === 'TPEO' && (
-                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', marginBottom: '0.5rem' }}>
+                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #a7f3d0', background: '#ecfdf5', marginBottom: '0.5rem' }}>
                       {!isTpeoForThisTaluka ? (
                         <div style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: 600, textAlign: 'center', padding: '0.5rem' }}>
                           ⚠️ This employee belongs to {emp.taluka} Taluka. Only TPEO - {emp.taluka} can process this proposal.
@@ -722,7 +732,7 @@ export default function EmployeeDetailPage() {
                             <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('tpeo_query')} className="btn btn-ghost btn-sm" style={{ color: '#ef4444', borderColor: '#fecaca', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px' }}>
                               ↩ Raise Query & Return
                             </button>
-                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('tpeo_forward')} className="btn btn-primary btn-sm" style={{ fontSize: '0.75rem', borderRadius: '6px', background: '#2563eb' }}>
+                            <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('tpeo_forward')} className="btn btn-primary btn-sm" style={{ fontSize: '0.75rem', borderRadius: '6px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}>
                               Forward to DPEO ➔
                             </button>
                           </div>
@@ -733,7 +743,7 @@ export default function EmployeeDetailPage() {
 
                   {/* DPEO Actions Form */}
                   {role === 'DPEO' && proposal.current_handler === 'DPEO' && (
-                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #bfdbfe', background: '#eff6ff', marginBottom: '0.5rem' }}>
+                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #a7f3d0', background: '#ecfdf5', marginBottom: '0.5rem' }}>
                       {proposal.status?.includes('Queried by DPPF') && (
                         <div style={{ padding: '0.6rem 0.8rem', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '0.75rem', color: '#b91c1c', fontWeight: 600, marginBottom: '0.75rem' }}>
                           ↩ DPPF has raised a query. Send this query to TPEO for resolution.
@@ -778,7 +788,7 @@ export default function EmployeeDetailPage() {
                           <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: '#d97706', borderColor: '#fde68a', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px', justifyContent: 'center' }}>
                             ↩ Send Query to TPEO
                           </button>
-                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_approve')} className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: '#059669', justifyContent: 'center' }}>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dpeo_approve')} className="btn btn-primary btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', justifyContent: 'center' }}>
                             Forward to DPPF ➔
                           </button>
                         </div>
@@ -788,26 +798,26 @@ export default function EmployeeDetailPage() {
 
                   {/* DPPF Actions Form */}
                   {role === 'DPPF' && proposal.current_handler?.includes('DPPF') && proposal.status !== 'Approved' && (
-                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #c084fc', background: '#faf5ff', marginBottom: '0.5rem' }}>
+                    <div style={{ padding: '1.25rem', borderRadius: '8px', border: '1px solid #a7f3d0', background: '#ecfdf5', marginBottom: '0.5rem' }}>
                       <form onSubmit={(e) => { e.preventDefault(); }}>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.25rem' }}>Letter No.</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter No.</label>
                             <input
                               type="text"
                               className="search-input"
                               placeholder="Enter Letter No."
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#e9d5ff' }}
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                               value={worksheetNo}
                               onChange={(e) => setWorksheetNo(e.target.value)}
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.25rem' }}>Letter Date</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Letter Date</label>
                             <input
                               type="date"
                               className="search-input"
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#e9d5ff' }}
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', borderColor: '#a7f3d0' }}
                               value={worksheetDate}
                               onChange={(e) => setWorksheetDate(e.target.value)}
                             />
@@ -815,20 +825,20 @@ export default function EmployeeDetailPage() {
                         </div>
 
                         <div style={{ marginBottom: '0.85rem' }}>
-                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#6b21a8', marginBottom: '0.25rem' }}>Query Details</label>
+                          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#065f46', marginBottom: '0.25rem' }}>Query Details</label>
                           <textarea
                             placeholder="Enter DPPF query details or approval remarks..."
                             className="search-input"
-                            style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#e9d5ff' }}
+                            style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '55px', resize: 'vertical', borderColor: '#a7f3d0' }}
                             value={approverRemarks}
                             onChange={(e) => setApproverRemarks(e.target.value)}
                           />
                         </div>
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'space-between' }}>
-                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: '#a855f7', borderColor: '#d8b4fe', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px', justifyContent: 'center' }}>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_query')} className="btn btn-ghost btn-sm" style={{ flex: 1, color: '#d97706', borderColor: '#fde68a', background: '#ffffff', fontSize: '0.75rem', borderRadius: '6px', justifyContent: 'center' }}>
                             ↩ Raise DPPF Query & Return to DPEO
                           </button>
-                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_settle')} className="btn btn-success btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)', justifyContent: 'center' }}>
+                          <button type="button" disabled={actionLoading} onClick={() => handleWorkflowAction('dppf_settle')} className="btn btn-success btn-sm" style={{ flex: 1, fontSize: '0.75rem', borderRadius: '6px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', justifyContent: 'center' }}>
                             ✓ Approve
                           </button>
                         </div>
@@ -842,7 +852,7 @@ export default function EmployeeDetailPage() {
                       <div style={{ fontSize: '0.78rem', color: '#b91c1c', fontWeight: 600, marginBottom: '0.75rem' }}>
                         ↩ TPEO has queried this proposal. Please make required changes and resubmit.
                       </div>
-                      <button onClick={() => setShowProposalForm(true)} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', fontSize: '0.78rem', background: '#2563eb' }}>
+                      <button onClick={() => setShowProposalForm(true)} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', fontSize: '0.78rem', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}>
                         📝 Edit & Resubmit Proposal
                       </button>
                     </div>
@@ -851,12 +861,12 @@ export default function EmployeeDetailPage() {
                   {/* General waiting states */}
                   {proposal.status !== 'Approved' && proposal.current_handler !== role && (
                     <div style={{ padding: '0.85rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid #f1f5f9', marginTop: '0.5rem' }}>
-                      ⏳ Awaiting action from current handler: <strong style={{ color: '#2563eb' }}>{proposal.current_handler}</strong>.
+                      ⏳ Awaiting action from current handler: <strong style={{ color: '#059669' }}>{proposal.current_handler}</strong>.
                     </div>
                   )}
 
                   {proposal.status === 'Approved' && (
-                    <div style={{ padding: '1rem', borderRadius: '8px', textAlign: 'center', fontSize: '0.82rem', color: '#15803d', fontWeight: 700, background: '#f0fdf4', border: '1px solid #bbf7d0', marginTop: '0.5rem' }}>
+                    <div style={{ padding: '1rem', borderRadius: '8px', textAlign: 'center', fontSize: '0.82rem', color: '#065f46', fontWeight: 700, background: '#f0fdf4', border: '1px solid #a7f3d0', marginTop: '0.5rem' }}>
                       🎉 Pension Case Approved.
                     </div>
                   )}
@@ -874,7 +884,7 @@ export default function EmployeeDetailPage() {
                         /* Default display: initiate action */
                         <div style={{ padding: '0.5rem 0', textAlign: 'center' }}>
                           {(role === 'Salary School' || role === 'Group School') ? (
-                            <button onClick={() => setShowProposalForm(true)} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', background: '#2563eb' }}>
+                            <button onClick={() => setShowProposalForm(true)} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}>
                               📁 Initiate Pension Proposal
                             </button>
                           ) : role ? (
@@ -882,7 +892,7 @@ export default function EmployeeDetailPage() {
                               ⚠️ No pension proposal has been submitted yet for this employee by the Salary School.
                             </div>
                           ) : (
-                            <Link href="/login" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', color: '#2563eb', borderColor: '#a7f3d0' }}>
+                            <Link href="/login" className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', borderRadius: '8px', color: '#059669', borderColor: '#a7f3d0', background: '#ecfdf5' }}>
                               🔒 Sign In as Salary School to Propose
                             </Link>
                           )}
@@ -918,11 +928,11 @@ export default function EmployeeDetailPage() {
                           </div>
 
                           <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#1e3a8a', marginBottom: '0.25rem' }}>Remarks / Remarks Details</label>
+                            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 600, color: '#064e3b', marginBottom: '0.25rem' }}>Remarks / Remarks Details</label>
                             <textarea
                               placeholder="Submission remarks / justifications..."
                               className="search-input"
-                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '65px', resize: 'vertical', borderColor: '#bfdbfe' }}
+                              style={{ width: '100%', padding: '0.45rem 0.6rem', fontSize: '0.78rem', height: '65px', resize: 'vertical', borderColor: '#a7f3d0' }}
                               value={clerkRemarks}
                               onChange={(e) => setClerkRemarks(e.target.value)}
                             />
@@ -930,7 +940,7 @@ export default function EmployeeDetailPage() {
 
                           <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                             <button type="button" onClick={() => setShowProposalForm(false)} className="btn btn-ghost btn-sm" style={{ borderRadius: '6px' }}>Cancel</button>
-                            <button type="submit" disabled={formSubmitting} className="btn btn-primary btn-sm" style={{ borderRadius: '6px', background: '#2563eb' }}>{formSubmitting ? 'Submitting...' : 'Submit Proposal'}</button>
+                            <button type="submit" disabled={formSubmitting} className="btn btn-primary btn-sm" style={{ borderRadius: '6px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)' }}>{formSubmitting ? 'Submitting...' : 'Submit Proposal'}</button>
                           </div>
                         </form>
                       )}
@@ -942,15 +952,15 @@ export default function EmployeeDetailPage() {
 
             {/* Action History Timeline */}
             {proposal && proposal.history && (
-              <div className="chart-card fade-in" style={{ padding: '1.5rem', border: '1px solid #bfdbfe', background: '#ffffff', borderRadius: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#1e3a8a' }}>
+              <div className="chart-card fade-in" style={{ padding: '1.5rem', border: '1px solid #a7f3d0', background: '#ffffff', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', color: '#064e3b' }}>
                   <span style={{ fontSize: '1.1rem' }}>📅</span>
                   <span style={{ fontWeight: 800, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Proposal Action Timeline & History
                   </span>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', paddingLeft: '1rem', borderLeft: '2px solid #bfdbfe', marginLeft: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', position: 'relative', paddingLeft: '1rem', borderLeft: '2px solid #a7f3d0', marginLeft: '0.5rem' }}>
                   {proposal.history.split('\n').filter(Boolean).map((line, idx) => {
                     const match = line.match(/^\[(.*?)\]\s*(.*)/);
                     const timeStr = match ? match[1] : '';
@@ -983,21 +993,78 @@ export default function EmployeeDetailPage() {
                           width: '10px',
                           height: '10px',
                           borderRadius: '50%',
-                          background: '#2563eb',
+                          background: '#059669',
                           border: '2px solid #ffffff',
-                          boxShadow: '0 0 0 3px rgba(37, 99, 235, 0.08)'
+                          boxShadow: '0 0 0 3px rgba(5, 150, 105, 0.15)'
                         }} />
                         
                         {(() => {
                           const hasRemarks = textStr.includes('. Remarks:');
                           const remarkVal = hasRemarks ? textStr.split('. Remarks:')[1]?.trim() : '';
                           const shouldShowRemarks = hasRemarks && remarkVal && remarkVal !== 'No remarks' && remarkVal !== 'N/A';
+                          const titleText = textStr.split('. Remarks:')[0];
+
+                          // Check if line has Letter No to make it clickable
+                          const letterMatch = titleText.match(/(.*?\bwith Letter No\.\s*)([^\s\.,]+)(.*)/i);
+
+                          const handleLetterClick = (extractedLetterNo) => {
+                            // Extract letter date if present (e.g., "on 29/07/2026")
+                            const dateMatch = titleText.match(/on\s+([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}|[0-9]{1,2}\s+[A-Za-z]{3}\s+[0-9]{4})/i);
+                            const letterDate = dateMatch ? dateMatch[1] : (proposal?.worksheet_date ? new Date(proposal.worksheet_date).toLocaleDateString('en-IN') : 'N/A');
+
+                            // Determine type of action
+                            let actionType = 'proposal_init';
+                            if (titleText.includes('Resubmitted')) actionType = 'proposal_resubmit';
+                            else if (titleText.includes('Forwarded to DPEO')) actionType = 'tpeo_forward';
+                            else if (titleText.includes('Query raised by TPEO')) actionType = 'tpeo_query';
+                            else if (titleText.includes('Forwarded to DPPF')) actionType = 'dpeo_forward';
+                            else if (titleText.includes('Query raised by DPEO')) actionType = 'dpeo_query';
+                            else if (titleText.includes('Query raised by DPPF')) actionType = 'dppf_query';
+                            else if (titleText.includes('Approved by DPPF')) actionType = 'dppf_approve';
+
+                            setViewingLetter({
+                              letterNo: extractedLetterNo,
+                              letterDate: letterDate,
+                              actionType: actionType,
+                              rawText: titleText,
+                              remarks: remarkVal,
+                              timeStr: timeStr
+                            });
+                          };
 
                           return (
                             <>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.2rem', alignItems: 'center' }}>
                                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#064e3b' }}>
-                                  {textStr.split('. Remarks:')[0]}
+                                  {letterMatch ? (
+                                    <>
+                                      {letterMatch[1]}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleLetterClick(letterMatch[2])}
+                                        style={{
+                                          background: '#ecfdf5',
+                                          color: '#047857',
+                                          border: '1px solid #a7f3d0',
+                                          borderRadius: '6px',
+                                          padding: '2px 8px',
+                                          fontWeight: 800,
+                                          cursor: 'pointer',
+                                          fontSize: '0.76rem',
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px',
+                                          textDecoration: 'underline'
+                                        }}
+                                        title="Click to view & print official letter"
+                                      >
+                                        📄 Letter No. {letterMatch[2]}
+                                      </button>
+                                      {letterMatch[3]}
+                                    </>
+                                  ) : (
+                                    titleText
+                                  )}
                                 </span>
                                 <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                                   {timeStr}
@@ -1031,6 +1098,348 @@ export default function EmployeeDetailPage() {
           </div>
         </div>
       </main>
+
+      {/* OFFICIAL LETTER VIEW MODAL (proposal.doc Format) */}
+      {viewingLetter && (() => {
+        // Gujarati Taluka mapping
+        const TALUKA_GUJARATI_MAP = {
+          'BHAVNAGAR': 'ભાવનગર',
+          'GARIYADHAR': 'ગારિયાધાર',
+          'GHOGHA': 'ઘોઘા',
+          'JESAR': 'જેસર',
+          'MAHUVA': 'મહુવા',
+          'PALITANA': 'પાલિતાણા',
+          'SHIHOR': 'શિહોર',
+          'SIHOR': 'શિહોર',
+          'TALAJA': 'તળાજા',
+          'UMRALA': 'ઉમરાળા',
+          'VALLABHIPUR': 'વલ્લભીપુર'
+        };
+        const rawTaluka = emp?.taluka ? emp.taluka.trim().toUpperCase() : '';
+        const empTaluka = TALUKA_GUJARATI_MAP[rawTaluka] || emp?.taluka || 'ભાવનગર';
+
+        // Find relevant user profiles for sender & receiver
+        const schoolUser = allUsers.find(u => u.role === 'Salary School' && u.salary_school === emp?.salary_school) || {};
+        const tpeoUser = allUsers.find(u => u.role === 'TPEO' && (u.taluka?.toUpperCase() === rawTaluka)) || {};
+        const dpeoUser = allUsers.find(u => u.role === 'DPEO') || {};
+
+        // Salary School Office Name (used for office letterhead & stamps)
+        const salarySchoolGujaratiOffice = schoolUser.office_name_gujarati || emp?.salary_school || 'કેન્દ્રવર્તી શાળા';
+        // Teacher's actual working school (used in letter text for the teacher's workplace)
+        const teacherActualSchool = emp?.school_name || emp?.school_name_english || emp?.salary_school || 'પ્રાથમિક શાળા';
+
+        // Formatted Employee Gujarati Name with "શ્રી "
+        const rawEmpName = emp?.name_gujarati || emp?.name_english || '';
+        const trimmedEmpName = rawEmpName.trim();
+        const empNameGujarati = trimmedEmpName.startsWith('શ્રી') ? trimmedEmpName : `શ્રી ${trimmedEmpName}`;
+
+        let senderTitle = schoolUser.office_name_gujarati || `મુખ્ય શિક્ષકશ્રી, ${salarySchoolGujaratiOffice}`;
+        let senderStamp = schoolUser.office_stamp || `પ્રાથમિક શાળા, ${empTaluka}`;
+        let senderAddress = schoolUser.address || `${salarySchoolGujaratiOffice}, તા. ${empTaluka}`;
+        let senderPhone = schoolUser.phone || '—';
+        let senderEmail = schoolUser.email || '—';
+
+        let lowerHierarchyInfo = `મુખ્ય શિક્ષકશ્રી, ${teacherActualSchool}, તા. ${empTaluka}`;
+
+        let recipientTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત, ${empTaluka}`;
+        let recipientAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+
+        let subjectText = 'પેન્શન કેસ મંજુરી અર્થે મોકલવા બાબત.';
+        let referenceText = '';
+        let bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} તા. ${formatDate(emp?.retirement_date)} નાં રોજ વયમર્યાદા/ સ્વૈચ્છિક/ અવસાનથી નિવૃત થયેલ/ થનાર હોય આ સાથે અસલ સેવાપોથી સામેલ રાખી મોકલી આપવામાં આવે છે, જે પેન્શન કેસ મંજુર કરવા વિનંતી.`;
+
+        if (viewingLetter.actionType === 'proposal_resubmit') {
+          subjectText = 'પેન્શન કેસ પૂર્તતા કરી પુન: મોકલવા બાબત.';
+          referenceText = `અત્રેની કચેરીના પત્ર ક્રમાંક: ${viewingLetter.letterNo}`;
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસ અન્વયે દર્શાવેલ ક્વેરી/પૂર્તતા ની પૂર્તતા કરી અસલ સાધનિક કાગળો સાથે આ સાથે પુન: મોકલી આપવામાં આવે છે. જે અંગે આગળની યોગ્ય કાર્યવાહી કરવા વિનંતી.`;
+        } else if (viewingLetter.actionType === 'tpeo_forward') {
+          senderTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka}`;
+          senderStamp = tpeoUser.office_stamp || `તાલુકા પંચાયત, ${empTaluka}`;
+          senderAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+          senderPhone = tpeoUser.phone || '—';
+          senderEmail = tpeoUser.email || '—';
+          lowerHierarchyInfo = schoolUser.office_name_gujarati 
+            ? (schoolUser.address ? `મુખ્ય શિક્ષકશ્રી, ${schoolUser.office_name_gujarati}, ${schoolUser.address}` : `મુખ્ય શિક્ષકશ્રી, ${schoolUser.office_name_gujarati}, તા. ${empTaluka}`)
+            : `મુખ્ય શિક્ષકશ્રી, ${salarySchoolGujaratiOffice}, તા. ${empTaluka}`;
+
+          recipientTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
+          recipientAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
+
+          subjectText = 'પેન્શન કેસ આગળની મંજુરી/કાર્યવાહી અર્થે મોકલવા બાબત.';
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ અત્રેની કચેરી ખાતેથી ચકાસણી કરી આગળની ઘટતી મંજુરી અર્થે રવાના કરવામાં આવે છે.`;
+        } else if (viewingLetter.actionType === 'tpeo_query') {
+          senderTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka}`;
+          senderStamp = tpeoUser.office_stamp || `તાલુકા પંચાયત, ${empTaluka}`;
+          senderAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+          senderPhone = tpeoUser.phone || '—';
+          senderEmail = tpeoUser.email || '—';
+          lowerHierarchyInfo = schoolUser.office_name_gujarati 
+            ? (schoolUser.address ? `મુખ્ય શિક્ષકશ્રી, ${schoolUser.office_name_gujarati}, ${schoolUser.address}` : `મુખ્ય શિક્ષકશ્રી, ${schoolUser.office_name_gujarati}, તા. ${empTaluka}`)
+            : `મુખ્ય શિક્ષકશ્રી, ${salarySchoolGujaratiOffice}, તા. ${empTaluka}`;
+
+          recipientTitle = schoolUser.office_name_gujarati || `મુખ્ય શિક્ષકશ્રી, ${salarySchoolGujaratiOffice}`;
+          recipientAddress = schoolUser.address || `${salarySchoolGujaratiOffice}, તા. ${empTaluka}`;
+
+          subjectText = 'પેન્શન કેસ અંગે પૂર્તતા/ક્વેરી દર્શાવવા બાબત.';
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, આપની કચેરી હસ્તકની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસની ચકાસણી કરતા નીચે મુજબની ક્ષતિ/ક્વેરી જણાયેલ છે. સદર પૂર્તતા દિવસ-૭ માં અત્રેની કચેરીએ જમા કરાવવા જણાવવામાં આવે છે.`;
+        } else if (viewingLetter.actionType === 'dpeo_forward') {
+          senderTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર';
+          senderStamp = dpeoUser.office_stamp || 'જિલ્લા પંચાયત, ભાવનગર';
+          senderAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
+          senderPhone = dpeoUser.phone || '—';
+          senderEmail = dpeoUser.email || '—';
+          lowerHierarchyInfo = tpeoUser.office_name_gujarati 
+            ? (tpeoUser.address ? `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, ${tpeoUser.address}` : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, તા. ${empTaluka}`)
+            : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+
+          recipientTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF), ગુજરાત રાજ્ય';
+          recipientAddress = 'ગાંધીનગર';
+
+          subjectText = 'પેન્શન કેસ આખરી મંજુરી અર્થે રવાના બાબત.';
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ભાવનગર જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ અત્રેની કચેરી દ્વારા મંજુર કરી આખરી પેન્શન ઓર્ડર અર્થે રવાના કરવામાં આવે છે.`;
+        } else if (viewingLetter.actionType === 'dpeo_query') {
+          senderTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર';
+          senderStamp = dpeoUser.office_stamp || 'જિલ્લા પંચાયત, ભાવનગર';
+          senderAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
+          senderPhone = dpeoUser.phone || '—';
+          senderEmail = dpeoUser.email || '—';
+          lowerHierarchyInfo = tpeoUser.office_name_gujarati 
+            ? (tpeoUser.address ? `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, ${tpeoUser.address}` : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, તા. ${empTaluka}`)
+            : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+
+          recipientTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત, ${empTaluka}`;
+          recipientAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+
+          subjectText = 'પેન્શન કેસ અંગે ક્ષતિ/ક્વેરી પૂર્તતા બાબત.';
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં અત્રેની જિલ્લા કચેરી દ્વારા ચકાસણી દરમિયાન નીચે મુજબની ક્ષતિઓ જણાયેલ છે. જેની જરૂરી પૂર્તતા કરી પુન: રજુ કરવા જણાવાય છે.`;
+        } else if (viewingLetter.actionType === 'dppf_query') {
+          senderTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF)';
+          senderStamp = 'DPPF, ગાંધીનગર';
+          senderAddress = 'ગાંધીનગર';
+          lowerHierarchyInfo = dpeoUser.office_name_gujarati 
+            ? (dpeoUser.address ? `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ${dpeoUser.address}` : `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ભાવનગર`)
+            : 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
+
+          recipientTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
+          recipientAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
+
+          subjectText = 'પેન્શન કેસ અન્વયે DPPF ક્વેરી પૂર્તતા બાબત.';
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં DPPF કચેરી દ્વારા નીચે દર્શાવેલ મુદ્દાઓની પૂર્તતા માટે કેસ પરત કરવામાં આવે છે.`;
+        }
+
+        return (
+          <div className="modal-backdrop-print-fix" style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(15, 23, 42, 0.75)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '1.5rem'
+          }}>
+            <div className="modal-card-print-fix" style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '850px',
+              width: '100%',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              {/* Modal Top Bar (Non-Printable) */}
+              <div className="no-print" style={{
+                padding: '1rem 1.5rem',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#f8fafc',
+                borderTopLeftRadius: '16px',
+                borderTopRightRadius: '16px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.25rem' }}>📄</span>
+                  <span style={{ fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>
+                    Official Letter View — Letter No: {viewingLetter.letterNo}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="btn btn-primary btn-sm"
+                    style={{ background: '#059669', borderColor: '#059669', padding: '0.4rem 1rem', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  >
+                    🖨️ Print / Download Letter
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewingLetter(null)}
+                    style={{ background: '#e2e8f0', border: 'none', padding: '0.4rem 0.85rem', borderRadius: '8px', fontWeight: 700, color: '#475569', cursor: 'pointer' }}
+                  >
+                    ✕ Close
+                  </button>
+                </div>
+              </div>
+
+              {/* Document Printable Area (proposal.doc format) */}
+              <div id="printable-letter" style={{
+                padding: '2rem 2.5rem',
+                fontFamily: "'Shruti', 'Gujarati Mohini', 'Calibri', sans-serif",
+                color: '#000000',
+                fontSize: '14px',
+                lineHeight: 1.5,
+                background: '#ffffff'
+              }}>
+                {/* Official Letterhead Header (Centered format matching proposal.doc) */}
+                <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#000', marginBottom: '0.15rem' }}>
+                    {senderAddress}
+                  </div>
+                  <div style={{ fontSize: '0.88rem', color: '#333' }}>
+                    <strong>ફોન:</strong> {senderPhone} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>Email:</strong> {senderEmail}
+                  </div>
+                </div>
+
+                {/* Divider line */}
+                <div style={{ borderBottom: '1.5px solid #000', marginBottom: '1rem' }} />
+
+                {/* Letter No & Date Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                  <div>
+                    નં: <span style={{ textDecoration: 'underline' }}>{viewingLetter.letterNo}</span>
+                  </div>
+                  <div>
+                    તા: <span style={{ textDecoration: 'underline' }}>{viewingLetter.letterDate}</span>
+                  </div>
+                </div>
+
+                {/* To Address */}
+                <div style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ fontWeight: 'bold' }}>પ્રતિ,</div>
+                  <div style={{ fontWeight: 'bold', fontSize: '0.98rem', marginLeft: '1.5rem' }}>{recipientTitle}</div>
+                  <div style={{ marginLeft: '1.5rem' }}>{recipientAddress}</div>
+                </div>
+
+                {/* Subject & Reference */}
+                <div style={{ marginBottom: '1.25rem', paddingLeft: '1.5rem' }}>
+                  <div style={{ fontWeight: 'bold' }}>
+                    વિષય:- <span style={{ textDecoration: 'underline' }}>{subjectText}</span>
+                  </div>
+                  <div style={{ fontWeight: 'bold', paddingLeft: '3.5rem', marginTop: '0.2rem' }}>
+                    {empNameGujarati}, {emp?.designation || 'શિક્ષક'}, {teacherActualSchool}
+                  </div>
+                  {referenceText && (
+                    <div style={{ fontWeight: 'bold', marginTop: '0.2rem' }}>
+                      સંદર્ભ:- {referenceText}
+                    </div>
+                  )}
+                </div>
+
+                {/* Body Paragraph */}
+                <div style={{ textIndent: '2rem', textAlign: 'justify', marginBottom: '1.25rem', fontSize: '14px', lineHeight: 1.6 }}>
+                  {bodyParagraph}
+                </div>
+
+                {/* Remarks / Query Details Block if available */}
+                {viewingLetter.remarks && (
+                  <div style={{
+                    margin: '1rem 0 1.25rem 1.5rem',
+                    padding: '0.75rem 1rem',
+                    border: '1.5px solid #000',
+                    borderRadius: '4px',
+                    background: '#fafafa'
+                  }}>
+                    <div style={{ fontWeight: 'bold', textDecoration: 'underline', marginBottom: '0.25rem' }}>
+                      પૂર્તતા / ક્વેરી / શેરો (Remarks):
+                    </div>
+                    <div>{viewingLetter.remarks}</div>
+                  </div>
+                )}
+
+                {/* Enclosures & Sign-off Row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '1.25rem', marginBottom: '1.5rem' }}>
+                  <div>
+                    <strong>બીડાણ:-</strong> અસલ સેવાપોથી, દરખાસ્ત તથા સાધનિક કાગળો
+                  </div>
+                  <div style={{ textAlign: 'center', minWidth: '220px' }}>
+                    <div style={{ marginTop: '1.75rem', fontWeight: 'bold' }}>{senderTitle}</div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontStyle: 'italic' }}>{senderStamp}</div>
+                  </div>
+                </div>
+
+                {/* CC Block (Placed BELOW the Sign-off Stamp) */}
+                <div style={{ marginTop: '1.25rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.75rem' }}>
+                  <div style={{ fontWeight: 'bold', marginBottom: '0.35rem' }}>નકલ રવાના જાણ તથા ઘટતું કરવા સારુ:</div>
+                  <div style={{ fontSize: '0.88rem', lineHeight: 1.5, paddingLeft: '0.5rem' }}>
+                    (૧) {lowerHierarchyInfo}<br />
+                    (૨) {empNameGujarati}, {emp?.designation || 'શિક્ષક'}, {teacherActualSchool}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: A4 portrait;
+            margin: 10mm 15mm;
+          }
+          html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .app-shell, .sidebar, .main-content, .topbar, .page-container, .toast-container, .no-print {
+            display: none !important;
+          }
+          .modal-backdrop-print-fix {
+            position: static !important;
+            background: #ffffff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: block !important;
+          }
+          .modal-card-print-fix {
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border: none !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            max-height: none !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          #printable-letter {
+            display: block !important;
+            position: static !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border: none !important;
+            font-size: 13.5px !important;
+            line-height: 1.45 !important;
+          }
+          #printable-letter * {
+            visibility: visible !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
+

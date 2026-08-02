@@ -50,48 +50,62 @@ export default function LoginPage() {
       .catch((err) => console.error(err));
   }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
 
-    setTimeout(() => {
-      // Validation
-      if (role === 'Salary School' && password !== 'school123') {
-        setError('Invalid password for Salary School role (use school123)');
-        setLoading(false);
-        return;
-      }
-      if (role === 'TPEO' && password !== 'tpeo123') {
-        setError('Invalid password for TPEO role (use tpeo123)');
-        setLoading(false);
-        return;
-      }
-      if (role === 'DPEO' && password !== 'dpeo123') {
-        setError('Invalid password for DPEO role (use dpeo123)');
-        setLoading(false);
-        return;
-      }
-      if (role === 'DPPF' && password !== 'dppf123') {
-        setError('Invalid password for DPPF role (use dppf123)');
-        setLoading(false);
-        return;
-      }
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role,
+          password,
+          taluka,
+          salary_school: selectedSalarySchool
+        }),
+      });
 
-      localStorage.setItem('user_role', role);
-      if (role === 'TPEO') {
-        localStorage.setItem('user_name', `TPEO - ${taluka}`);
-        localStorage.setItem('user_taluka', taluka);
-      } else if (role === 'Salary School') {
-        localStorage.setItem('user_name', `Salary School - ${selectedSalarySchool}`);
-        localStorage.setItem('user_salary_school', selectedSalarySchool);
+      const data = await res.json();
+      if (data.success && data.user) {
+        localStorage.setItem('user_role', data.user.role);
+        localStorage.setItem('user_name', data.user.name);
+        if (data.user.taluka) localStorage.setItem('user_taluka', data.user.taluka);
+        if (data.user.salary_school) localStorage.setItem('user_salary_school', data.user.salary_school);
+
+        router.push('/');
+        router.refresh();
       } else {
-        localStorage.setItem('user_name', role);
+        setError(data.error || 'Invalid credentials. Please try again.');
+        setLoading(false);
       }
-      
-      router.push('/');
-      router.refresh();
-    }, 600);
+    } catch (err) {
+      console.error('Login error:', err);
+      // Client-side fallback if server fails
+      if (
+        (role === 'Salary School' && password === 'school123') ||
+        (role === 'TPEO' && password === 'tpeo123') ||
+        (role === 'DPEO' && password === 'dpeo123') ||
+        (role === 'DPPF' && password === 'dppf123')
+      ) {
+        localStorage.setItem('user_role', role);
+        if (role === 'TPEO') {
+          localStorage.setItem('user_name', `TPEO - ${taluka}`);
+          localStorage.setItem('user_taluka', taluka);
+        } else if (role === 'Salary School') {
+          localStorage.setItem('user_name', `Salary School - ${selectedSalarySchool}`);
+          localStorage.setItem('user_salary_school', selectedSalarySchool);
+        } else {
+          localStorage.setItem('user_name', role);
+        }
+        router.push('/');
+        router.refresh();
+      } else {
+        setError('Invalid password for selected role.');
+        setLoading(false);
+      }
+    }
   };
 
   const getExpectedPassword = () => {

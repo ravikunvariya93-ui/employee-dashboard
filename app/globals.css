@@ -514,6 +514,20 @@ tbody td {
   white-space: nowrap;
 }
 
+/* Actions column — never clip or truncate buttons */
+td.actions-cell {
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
+  text-align: right;
+  width: 1%;
+}
+
+/* Users table — wider to accommodate all columns */
+.users-table {
+  min-width: 900px;
+}
+
 td.name-cell {
   color: var(--text-primary);
   font-weight: 500;

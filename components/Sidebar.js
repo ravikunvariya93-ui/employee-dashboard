@@ -21,7 +21,7 @@ export default function Sidebar() {
     }
   }, [pathname]);
 
-  const navItems = [
+  const baseNavItems = [
     {
       href: '/',
       label: 'Pension Dashboard',
@@ -72,6 +72,22 @@ export default function Sidebar() {
       ),
     },
   ];
+
+  const adminNavItem = {
+    href: '/users',
+    label: 'User Management',
+    isDpeoOnly: true,
+    icon: (
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+        <circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    ),
+  };
+
+  const navItems = (role === 'DPEO' || role === null) ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   const handleLogout = () => {
     localStorage.removeItem('user_role');
@@ -134,6 +150,7 @@ export default function Sidebar() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'space-between',
                     gap: '0.75rem',
                     padding: '0.75rem 1rem',
                     borderRadius: '10px',
@@ -146,10 +163,27 @@ export default function Sidebar() {
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  <span style={{ color: isActive ? '#059669' : '#64748b' }}>
-                    {item.icon}
-                  </span>
-                  {item.label}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ color: isActive ? '#059669' : '#64748b' }}>
+                      {item.icon}
+                    </span>
+                    <span>{item.label}</span>
+                  </div>
+                  {item.isDpeoOnly && (
+                    <span style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 800,
+                      background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                      color: '#ffffff',
+                      padding: '0.15rem 0.45rem',
+                      borderRadius: '10px',
+                      letterSpacing: '0.04em',
+                      textTransform: 'uppercase',
+                      boxShadow: '0 2px 6px rgba(5, 150, 105, 0.25)'
+                    }}>
+                      Admin
+                    </span>
+                  )}
                 </Link>
               );
             })}
