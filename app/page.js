@@ -63,6 +63,13 @@ export default function PensionDashboardPage() {
     const savedRole = localStorage.getItem('user_role');
     if (!savedRole) {
       router.replace('/login');
+    } else if (savedRole === 'Employee') {
+      const savedTeacherId = localStorage.getItem('user_teacher_id');
+      if (savedTeacherId) {
+        router.replace(`/employees/${savedTeacherId}`);
+      } else {
+        router.replace('/login');
+      }
     } else {
       setRole(savedRole);
       setUserTaluka(localStorage.getItem('user_taluka'));

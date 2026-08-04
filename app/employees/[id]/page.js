@@ -42,6 +42,20 @@ function formatDate(dateStr) {
   return dateStr;
 }
 
+function formatOfficeNameWithShree(title) {
+  if (!title) return title;
+  let formatted = title;
+  
+  // Replace keywords with their "શ્રી" versions if they don't already have it
+  formatted = formatted.replace(/(શિક્ષણાધિકારી)(?!શ્રી)/g, '$1શ્રી');
+  formatted = formatted.replace(/(મુખ્ય શિક્ષક)(?!શ્રી)/g, '$1શ્રી');
+  formatted = formatted.replace(/(નિયામક)(?!શ્રી)/g, '$1શ્રી');
+  formatted = formatted.replace(/(કેળવણી નિરીક્ષક)(?!શ્રી)/g, '$1શ્રી');
+  formatted = formatted.replace(/(શિક્ષણ નિરીક્ષક)(?!શ્રી)/g, '$1શ્રી');
+  
+  return formatted;
+}
+
 function getRetirementBenefits(emp) {
   if (!emp) return null;
   const isFix = emp.salary_type === 'Fix';
@@ -88,6 +102,12 @@ export default function EmployeeDetailPage() {
     if (!savedRole) {
       router.replace('/login');
     } else {
+      const savedTeacherId = localStorage.getItem('user_teacher_id');
+      if (savedRole === 'Employee' && String(id) !== String(savedTeacherId)) {
+        router.replace(`/employees/${savedTeacherId}`);
+        return;
+      }
+
       setRole(savedRole);
       setUserTaluka(localStorage.getItem('user_taluka'));
       setAuthChecked(true);
@@ -106,7 +126,7 @@ export default function EmployeeDetailPage() {
       .then(r => r.json())
       .then(d => { if (d.success) setAllUsers(d.users || []); })
       .catch(e => console.error('Users load error:', e));
-  }, [router]);
+  }, [router, id]);
 
   // Fetch teacher profile
   useEffect(() => {
@@ -343,9 +363,11 @@ export default function EmployeeDetailPage() {
             <div className="topbar-subtitle" style={{ fontSize: '0.72rem', color: '#059669' }}>EduBVN School Network</div>
           </div>
           <div className="topbar-actions">
-            <Link href={backUrl} className="btn btn-ghost btn-sm" style={{ borderRadius: '8px', fontSize: '0.75rem', borderColor: '#a7f3d0', color: '#059669', background: '#ecfdf5' }}>
-              ← Return to {backLabel}
-            </Link>
+            {role !== 'Employee' && (
+              <Link href={backUrl} className="btn btn-ghost btn-sm" style={{ borderRadius: '8px', fontSize: '0.75rem', borderColor: '#a7f3d0', color: '#059669', background: '#ecfdf5' }}>
+                ← Return to {backLabel}
+              </Link>
+            )}
           </div>
         </div>
 
@@ -421,6 +443,7 @@ export default function EmployeeDetailPage() {
                   </h4>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  <DetailRow label="Teacher Code" value={emp.teacher_code} />
                   <DetailRow label="School Name" value={emp.school_name} />
                   <DetailRow label="Salary School" value={emp.salary_school} />
                   <DetailRow label="DISE Code" value={emp.dise_code} />
@@ -1048,7 +1071,8 @@ export default function EmployeeDetailPage() {
                               actionType: actionType,
                               rawText: titleText,
                               remarks: remarkVal,
-                              timeStr: timeStr
+                              timeStr: timeStr,
+                              historyIndex: idx
                             });
                           };
 
@@ -1142,7 +1166,10 @@ export default function EmployeeDetailPage() {
         const parsedLetters = {};
         let lastQueryLetter = null;
         if (proposal && proposal.history) {
-          proposal.history.split('\n').filter(Boolean).forEach(line => {
+          const historyLines = proposal.history.split('\n').filter(Boolean);
+          const limitIndex = (viewingLetter && viewingLetter.historyIndex !== undefined) ? viewingLetter.historyIndex : historyLines.length - 1;
+          for (let i = 0; i <= limitIndex; i++) {
+            const line = historyLines[i];
             const match = line.match(/^\[(.*?)\]\s*(.*)/);
             if (match) {
               const text = match[2];
@@ -1190,7 +1217,7 @@ export default function EmployeeDetailPage() {
                 }
               }
             }
-          });
+          }
         }
 
         // Find relevant user profiles for sender & receiver
@@ -1229,7 +1256,7 @@ export default function EmployeeDetailPage() {
             ref = `અત્રેની કચેરીના પત્ર ક્રમાંક: ${viewingLetter.letterNo} તા. ${viewingLetter.letterDate}`;
           }
           referenceText = ref;
-          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસ અન્વયે સંદર્ભદર્શિત પત્રથી જણાવેલ પૂર્તતા/ક્ષતિઓની સંપૂર્ણ પૂર્તતા કરી અસલ સેવાપોથી તથા સાધનિક કાગળો આ સાથે પુન: મોકલી આપવામાં આવે છે, જે અંગે આગળની યોગ્ય કાર્યવાહી કરવા વિનંતી.`;
+          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસ અન્વયે સંદર્ભદર્શિત પત્ર (${ref}) થી જણાવેલ પૂર્તતા/ક્ષતિઓની સંપૂર્ણ પૂર્તતા કરી અસલ સેવાપોથી તથા સાધનિક કાગળો આ સાથે પુન: મોકલી આપવામાં આવે છે, જે અંગે આગળની યોગ્ય કાર્યવાહી કરવા વિનંતી.`;
         } else if (viewingLetter.actionType === 'tpeo_forward') {
           senderTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka}`;
           senderStamp = tpeoUser.office_stamp || `તાલુકા પંચાયત, ${empTaluka}`;
@@ -1243,13 +1270,17 @@ export default function EmployeeDetailPage() {
           recipientTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
           recipientAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
 
-          subjectText = 'પેન્શન કેસ આગળની મંજુરી/કાર્યવાહી અર્થે મોકલવા બાબત.';
+          subjectText = 'પેન્શન કેસ મંજુરી અર્થે મોકલવા બાબત.';
           let schoolRef = '';
           if (parsedLetters.school) {
             schoolRef = `${salarySchoolGujaratiOffice} ના પત્ર ક્રમાંક: ${parsedLetters.school.no} તા. ${parsedLetters.school.date}`;
           }
           referenceText = schoolRef || 'શાળાની મૂળ દરખાસ્ત.';
-          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ સંદર્ભિત પત્રથી અત્રેની કચેરી ખાતે મળેલ છે. સદર પેન્શન કેસની અત્રેની કચેરી ખાતેથી ચકાસણી કરી આગળની ઘટતી મંજુરી અર્થે અત્રેથી રવાના કરવામાં આવે છે.`;
+          if (lastQueryLetter) {
+            bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસ અન્વયે સંદર્ભિત ${lastQueryLetter.office} ના પત્ર ક્રમાંક: ${lastQueryLetter.no} તા. ${lastQueryLetter.date} થી જણાવેલ પૂર્તતા/ક્ષતિઓની સંપૂર્ણ પૂર્તતા કરી અસલ સેવાપોથી તથા સાધનિક કાગળો આ સાથે પેન્શન કેસ મંજુર કરવા મોકલી આપવામાં આવે છે.`;
+          } else {
+            bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} તા. ${formatDate(emp?.retirement_date)} નાં રોજ વયમર્યાદા/ સ્વૈચ્છિક/ અવસાનથી નિવૃત થયેલ/ થનાર હોય આ સાથે અસલ સેવાપોથી સામેલ રાખી મોકલી આપવામાં આવે છે, જે પેન્શન કેસ મંજુર કરવા વિનંતી.`;
+          }
         } else if (viewingLetter.actionType === 'tpeo_query') {
           senderTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka}`;
           senderStamp = tpeoUser.office_stamp || `તાલુકા પંચાયત, ${empTaluka}`;
@@ -1269,7 +1300,7 @@ export default function EmployeeDetailPage() {
             schoolRef = `${salarySchoolGujaratiOffice} ના પત્ર ક્રમાંક: ${parsedLetters.school.no} તા. ${parsedLetters.school.date}`;
           }
           referenceText = schoolRef || 'શાળાની મૂળ દરખાસ્ત.';
-          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, આપની કચેરી હસ્તકની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ સંદર્ભિત પત્રથી મળેલ છે. સદર પેન્શન કેસની ચકાસણી કરતા નીચે મુજબની ક્ષતિ/ક્વેરી જણાયેલ છે. સદર પૂર્તતા દિન-૭ માં અત્રેની કચેરીએ જમા કરાવવા જણાવવામાં આવે છે.`;
+          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં નીચે દર્શાવેલ મુદ્દાઓની પૂર્તતા માટે કેસ પરત કરવામાં આવે છે.`;
         } else if (viewingLetter.actionType === 'dpeo_forward') {
           senderTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર';
           senderStamp = dpeoUser.office_stamp || 'જિલ્લા પંચાયત, ભાવનગર';
@@ -1280,16 +1311,20 @@ export default function EmployeeDetailPage() {
             ? (tpeoUser.address ? `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, ${tpeoUser.address}` : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, તા. ${empTaluka}`)
             : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત કચેરી, ${empTaluka}`;
 
-          recipientTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF), ગુજરાત રાજ્ય';
-          recipientAddress = 'ગાંધીનગર';
+          recipientTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ નિયામકશ્રીની કચેરી';
+          recipientAddress = 'બ્લોક નં. ૧૮, ડૉ. જીવરાજ મહેતા ભવન, ગાંધીનગર';
 
-          subjectText = 'પેન્શન કેસ આખરી મંજુરી અર્થે રવાના બાબત.';
+          subjectText = 'પેન્શન કેસ મંજુરી અર્થે મોકલવા બાબત.';
           let tpeoRef = '';
           if (parsedLetters.tpeo) {
             tpeoRef = `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka} ના પત્ર ક્રમાંક: ${parsedLetters.tpeo.no} તા. ${parsedLetters.tpeo.date}`;
           }
           referenceText = tpeoRef || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka} ની દરખાસ્ત.`;
-          bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ભાવનગર જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ સંદર્ભિત પત્રથી અત્રેની કચેરી ખાતે મળેલ છે. સદર પેન્શન કેસ અત્રેની કચેરી દ્વારા ચકાસણી કરી મંજુર કરવામાં આવેલ છે અને આખરી પેન્શન ઓર્ડર મેળવવા અર્થે આ સાથે રવાના કરવામાં આવે છે.`;
+          if (lastQueryLetter) {
+            bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસ અન્વયે સંદર્ભિત ${lastQueryLetter.office} ના પત્ર ક્રમાંક: ${lastQueryLetter.no} તા. ${lastQueryLetter.date} થી જણાવેલ પૂર્તતા/ક્ષતિઓની સંપૂર્ણ પૂર્તતા કરી અસલ સેવાપોથી તથા સાધનિક કાગળો આ સાથે પેન્શન કેસ મંજુર કરવા મોકલી આપવામાં આવે છે.`;
+          } else {
+            bodyParagraph = `સવિનય ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, અત્રેના જિલ્લાના ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} તા. ${formatDate(emp?.retirement_date)} નાં રોજ વયમર્યાદા/ સ્વૈચ્છિક/ અવસાનથી નિવૃત થયેલ/ થનાર હોય આ સાથે અસલ સેવાપોથી સામેલ રાખી મોકલી આપવામાં આવે છે, જે પેન્શન કેસ મંજુર કરવા વિનંતી.`;
+          }
         } else if (viewingLetter.actionType === 'dpeo_query') {
           senderTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર';
           senderStamp = dpeoUser.office_stamp || 'જિલ્લા પંચાયત, ભાવનગર';
@@ -1300,20 +1335,20 @@ export default function EmployeeDetailPage() {
             ? (tpeoUser.address ? `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, ${tpeoUser.address}` : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, તા. ${empTaluka}`)
             : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત કચેરી, ${empTaluka}`;
 
-          recipientTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત, ${empTaluka}`;
-          recipientAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
+          recipientTitle = tpeoUser.office_name_gujarati || 'તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી';
+          recipientAddress = tpeoUser.address || `શિક્ષણ શાખા, તાલુકા પંચાયત, ${empTaluka}`;
 
           subjectText = 'પેન્શન કેસ અન્વયે પૂર્તતા બાબત.';
-          let tpeoRef = '';
-          if (parsedLetters.tpeo) {
-            tpeoRef = `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka} ના પત્ર ક્રમાંક: ${parsedLetters.tpeo.no} તા. ${parsedLetters.tpeo.date}`;
+          let dppfRef = '';
+          if (parsedLetters.dppf) {
+            dppfRef = `નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ, ગાંધીનગર ના પત્ર ક્રમાંક: ${parsedLetters.dppf.no} તા. ${parsedLetters.dppf.date}`;
           }
-          referenceText = tpeoRef || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${empTaluka} ની દરખાસ્ત.`;
-          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} નો પેન્શન કેસ સંદર્ભિત પત્રથી અત્રે મળેલ છે. સદર પેન્શન કેસમાં અત્રેની જિલ્લા કચેરી દ્વારા ચકાસણી દરમિયાન નીચે મુજબની ક્ષતિઓ જણાયેલ છે. જેની જરૂરી પૂર્તતા કરી પત્ર દિન-૭ માં પુન: રજુ કરવા જણાવાય છે.`;
+          referenceText = dppfRef || 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ, ગાંધીનગર નો પત્ર.';
+          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં નીચે દર્શાવેલ મુદ્દાઓની પૂર્તતા માટે કેસ પરત કરવામાં આવે છે.`;
         } else if (viewingLetter.actionType === 'dppf_query') {
-          senderTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF)';
-          senderStamp = 'DPPF, ગાંધીનગર';
-          senderAddress = 'ગાંધીનગર';
+          senderTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ';
+          senderStamp = 'ગાંધીનગર';
+          senderAddress = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ નિયામકશ્રીની કચેરી, બ્લોક નં. ૧૮, ડૉ. જીવરાજ મહેતા ભવન, ગાંધીનગર';
           lowerHierarchyInfo = dpeoUser.office_name_gujarati 
             ? (dpeoUser.address ? `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ${dpeoUser.address}` : `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ભાવનગર`)
             : 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
@@ -1328,40 +1363,11 @@ export default function EmployeeDetailPage() {
           }
           referenceText = dpeoRef || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર ની દરખાસ્ત.';
           bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં નીચે દર્શાવેલ મુદ્દાઓની પૂર્તતા માટે કેસ પરત કરવામાં આવે છે.`;
-
-          recipientTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF), ગુજરાત રાજ્ય';
-          recipientAddress = 'ગાંધીનગર';
-
-          subjectText = 'પેન્શન કેસ આખરી મંજુરી અર્થે રવાના બાબત.';
-        } else if (viewingLetter.actionType === 'dpeo_query') {
-          senderTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ભાવનગર';
-          senderStamp = dpeoUser.office_stamp || 'જિલ્લા પંચાયત, ભાવનગર';
-          senderAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
-          senderPhone = dpeoUser.phone || '—';
-          senderEmail = dpeoUser.email || '—';
-          lowerHierarchyInfo = tpeoUser.office_name_gujarati 
-            ? (tpeoUser.address ? `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, ${tpeoUser.address}` : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${tpeoUser.office_name_gujarati}, તા. ${empTaluka}`)
-            : `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત કચેરી, ${empTaluka}`;
-
-          recipientTitle = tpeoUser.office_name_gujarati || `તાલુકા પ્રાથમિક શિક્ષણાધિકારીશ્રી, તાલુકા પંચાયત, ${empTaluka}`;
-          recipientAddress = tpeoUser.address || `તાલુકા પંચાયત કચેરી, ${empTaluka}`;
-
-          subjectText = 'પેન્શન કેસ અન્વયે પૂર્તતા બાબત.';
-          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં અત્રેની જિલ્લા કચેરી દ્વારા ચકાસણી દરમિયાન નીચે મુજબની ક્ષતિઓ જણાયેલ છે. જેની જરૂરી પૂર્તતા કરી પુન: રજુ કરવા જણાવાય છે.`;
-        } else if (viewingLetter.actionType === 'dppf_query') {
-          senderTitle = 'નિયામકશ્રી, પેન્શન એન્ડ પ્રોવિડન્ટ ફંડ (DPPF)';
-          senderStamp = 'DPPF, ગાંધીનગર';
-          senderAddress = 'ગાંધીનગર';
-          lowerHierarchyInfo = dpeoUser.office_name_gujarati 
-            ? (dpeoUser.address ? `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ${dpeoUser.address}` : `જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, ${dpeoUser.office_name_gujarati}, ભાવનગર`)
-            : 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
-
-          recipientTitle = dpeoUser.office_name_gujarati || 'જિલ્લા પ્રાથમિક શિક્ષણાધિકારીશ્રી, જિલ્લા પંચાયત, ભાવનગર';
-          recipientAddress = dpeoUser.address || 'જિલ્લા પંચાયત ભવન, ભાવનગર';
-
-          subjectText = 'પેન્શન કેસ અન્વયે પૂર્તતા બાબત.';
-          bodyParagraph = `ઉપરોક્ત વિષય પરત્વે જણાવવાનું કે, ${empTaluka} તાલુકાની ${teacherActualSchool} ના ${emp?.designation || 'શિક્ષક'} ${empNameGujarati} ના પેન્શન કેસમાં નીચે દર્શાવેલ મુદ્દાઓની પૂર્તતા માટે કેસ પરત કરવામાં આવે છે.`;
         }
+
+        recipientTitle = formatOfficeNameWithShree(recipientTitle);
+        senderTitle = formatOfficeNameWithShree(senderTitle);
+        lowerHierarchyInfo = formatOfficeNameWithShree(lowerHierarchyInfo);
 
         return (
           <div className="modal-backdrop-print-fix" style={{
@@ -1436,11 +1442,11 @@ export default function EmployeeDetailPage() {
               }}>
                 {/* Official Letterhead Header (Centered format matching proposal.doc) */}
                 <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-                  <div style={{ fontSize: '1.05rem', fontWeight: 'bold', color: '#000', marginBottom: '0.15rem' }}>
+                  <div style={{ fontSize: '1.05rem', color: '#000', marginBottom: '0.15rem' }}>
                     {senderAddress}
                   </div>
                   <div style={{ fontSize: '0.88rem', color: '#333' }}>
-                    <strong>ફોન:</strong> {senderPhone} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <strong>Email:</strong> {senderEmail}
+                    ફોન: {senderPhone} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Email: {senderEmail}
                   </div>
                 </div>
 
@@ -1448,7 +1454,7 @@ export default function EmployeeDetailPage() {
                 <div style={{ borderBottom: '1.5px solid #000', marginBottom: '1rem' }} />
 
                 {/* Letter No & Date Row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', fontWeight: 'bold', fontSize: '0.95rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', fontSize: '0.95rem' }}>
                   <div>
                     નં: <span style={{ textDecoration: 'underline' }}>{viewingLetter.letterNo}</span>
                   </div>
@@ -1459,21 +1465,21 @@ export default function EmployeeDetailPage() {
 
                 {/* To Address */}
                 <div style={{ marginBottom: '1.25rem' }}>
-                  <div style={{ fontWeight: 'bold' }}>પ્રતિ,</div>
-                  <div style={{ fontWeight: 'bold', fontSize: '0.98rem', marginLeft: '1.5rem' }}>{recipientTitle}</div>
+                  <div>પ્રતિ,</div>
+                  <div style={{ fontSize: '0.98rem', marginLeft: '1.5rem' }}>{recipientTitle}</div>
                   <div style={{ marginLeft: '1.5rem' }}>{recipientAddress}</div>
                 </div>
 
                 {/* Subject & Reference */}
                 <div style={{ marginBottom: '1.25rem', paddingLeft: '1.5rem' }}>
-                  <div style={{ fontWeight: 'bold' }}>
+                  <div>
                     વિષય:- <span style={{ textDecoration: 'underline' }}>{subjectText}</span>
                   </div>
-                  <div style={{ fontWeight: 'bold', paddingLeft: '3.5rem', marginTop: '0.2rem' }}>
+                  <div style={{ paddingLeft: '3.5rem', marginTop: '0.2rem' }}>
                     {empNameGujarati}, {emp?.designation || 'શિક્ષક'}, {teacherActualSchool}
                   </div>
                   {referenceText && (
-                    <div style={{ fontWeight: 'bold', marginTop: '0.2rem' }}>
+                    <div style={{ marginTop: '0.2rem' }}>
                       સંદર્ભ:- {referenceText}
                     </div>
                   )}
@@ -1500,20 +1506,11 @@ export default function EmployeeDetailPage() {
                 {/* Enclosures & Sign-off Row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: '1.25rem', marginBottom: '1.5rem' }}>
                   <div>
-                    <strong>બીડાણ:-</strong> અસલ સેવાપોથી, દરખાસ્ત તથા સાધનિક કાગળો
+                    બીડાણ:- અસલ સેવાપોથી, દરખાસ્ત તથા સાધનિક કાગળો
                   </div>
                   <div style={{ textAlign: 'center', minWidth: '220px' }}>
-                    <div style={{ marginTop: '1.75rem', fontWeight: 'bold' }}>{senderTitle}</div>
+                    <div style={{ marginTop: '1.75rem' }}>{senderTitle}</div>
                     <div style={{ fontSize: '0.85rem', marginTop: '0.2rem', fontStyle: 'italic' }}>{senderStamp}</div>
-                  </div>
-                </div>
-
-                {/* CC Block (Placed BELOW the Sign-off Stamp) */}
-                <div style={{ marginTop: '1.25rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.75rem' }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '0.35rem' }}>નકલ રવાના જાણ તથા ઘટતું કરવા સારુ:</div>
-                  <div style={{ fontSize: '0.88rem', lineHeight: 1.5, paddingLeft: '0.5rem' }}>
-                    (૧) {lowerHierarchyInfo}<br />
-                    (૨) {empNameGujarati}, {emp?.designation || 'શિક્ષક'}, {teacherActualSchool}
                   </div>
                 </div>
               </div>

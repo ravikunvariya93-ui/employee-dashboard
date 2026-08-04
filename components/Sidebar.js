@@ -7,10 +7,12 @@ export default function Sidebar() {
   const pathname = usePathname();
   const [role, setRole] = useState(null);
   const [name, setName] = useState('');
+  const [teacherId, setTeacherId] = useState(null);
 
   useEffect(() => {
     setRole(localStorage.getItem('user_role'));
     setName(localStorage.getItem('user_name') || '');
+    setTeacherId(localStorage.getItem('user_teacher_id'));
   }, []);
 
   const [fromVal, setFromVal] = useState(null);
@@ -87,12 +89,28 @@ export default function Sidebar() {
     ),
   };
 
-  const navItems = (role === 'DPEO' || role === null) ? [...baseNavItems, adminNavItem] : baseNavItems;
+  const navItems = role === 'Employee'
+    ? [
+        {
+          href: `/employees/${teacherId}`,
+          label: 'My Pension Status',
+          icon: (
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          ),
+        }
+      ]
+    : (role === 'DPEO' || role === null) ? [...baseNavItems, adminNavItem] : baseNavItems;
 
   const handleLogout = () => {
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_taluka');
+    localStorage.removeItem('user_salary_school');
+    localStorage.removeItem('user_teacher_id');
+    localStorage.removeItem('user_teacher_code');
     window.location.href = '/login';
   };
 

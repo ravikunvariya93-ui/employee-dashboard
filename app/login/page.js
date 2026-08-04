@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
-  const [role, setRole] = useState('Salary School'); // 'Salary School', 'TPEO', 'DPEO', 'DPPF'
+  const [role, setRole] = useState('Salary School'); // 'Salary School', 'TPEO', 'DPEO', 'DPPF', 'Employee'
   const [taluka, setTaluka] = useState('SHIHOR'); // Default taluka for TPEO
   const [talukaList, setTalukaList] = useState([]);
   const [salarySchoolList, setSalarySchoolList] = useState([]);
   const [selectedSalarySchool, setSelectedSalarySchool] = useState('');
+  const [teacherCode, setTeacherCode] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,8 @@ export default function LoginPage() {
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_taluka');
     localStorage.removeItem('user_salary_school');
+    localStorage.removeItem('user_teacher_id');
+    localStorage.removeItem('user_teacher_code');
 
     // Fetch distinct talukas list
     fetch('/api/talukas')
@@ -63,7 +66,8 @@ export default function LoginPage() {
           role,
           password,
           taluka,
-          salary_school: selectedSalarySchool
+          salary_school: selectedSalarySchool,
+          username: role === 'Employee' ? teacherCode : undefined,
         }),
       });
 
@@ -73,8 +77,14 @@ export default function LoginPage() {
         localStorage.setItem('user_name', data.user.name);
         if (data.user.taluka) localStorage.setItem('user_taluka', data.user.taluka);
         if (data.user.salary_school) localStorage.setItem('user_salary_school', data.user.salary_school);
+        if (data.user.teacher_id) localStorage.setItem('user_teacher_id', data.user.teacher_id);
+        if (data.user.teacher_code) localStorage.setItem('user_teacher_code', data.user.teacher_code);
 
-        router.push('/');
+        if (data.user.role === 'Employee') {
+          router.push(`/employees/${data.user.teacher_id}`);
+        } else {
+          router.push('/');
+        }
         router.refresh();
       } else {
         setError(data.error || 'Invalid credentials. Please try again.');
@@ -87,22 +97,31 @@ export default function LoginPage() {
         (role === 'Salary School' && password === 'school123') ||
         (role === 'TPEO' && password === 'tpeo123') ||
         (role === 'DPEO' && password === 'dpeo123') ||
-        (role === 'DPPF' && password === 'dppf123')
+        (role === 'DPPF' && password === 'dppf123') ||
+        (role === 'Employee' && (teacherCode === '10214002621' || teacherCode === 'demo') && (password === '16-09-1980' || password === 'demo'))
       ) {
         localStorage.setItem('user_role', role);
         if (role === 'TPEO') {
           localStorage.setItem('user_name', `TPEO - ${taluka}`);
           localStorage.setItem('user_taluka', taluka);
+          router.push('/');
         } else if (role === 'Salary School') {
           localStorage.setItem('user_name', `Salary School - ${selectedSalarySchool}`);
           localStorage.setItem('user_salary_school', selectedSalarySchool);
+          router.push('/');
+        } else if (role === 'Employee') {
+          const demoId = teacherCode === '10214002621' ? '26' : '1';
+          localStorage.setItem('user_name', 'Demo Employee');
+          localStorage.setItem('user_teacher_id', demoId);
+          localStorage.setItem('user_teacher_code', teacherCode === 'demo' ? '10214002621' : teacherCode);
+          router.push(`/employees/${demoId}`);
         } else {
           localStorage.setItem('user_name', role);
+          router.push('/');
         }
-        router.push('/');
         router.refresh();
       } else {
-        setError('Invalid password for selected role.');
+        setError('Invalid credentials for selected role.');
         setLoading(false);
       }
     }
@@ -112,6 +131,7 @@ export default function LoginPage() {
     if (role === 'Salary School') return 'school123';
     if (role === 'TPEO') return 'tpeo123';
     if (role === 'DPEO') return 'dpeo123';
+    if (role === 'Employee') return '16-09-1980';
     return 'dppf123';
   };
 
@@ -209,15 +229,16 @@ export default function LoginPage() {
             </label>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: '0.35rem',
+              gridTemplateColumns: 'repeat(5, 1fr)',
+              gap: '0.2rem',
               background: '#ecfdf5',
               padding: '0.35rem',
               borderRadius: '14px',
               border: '1px solid #a7f3d0'
             }}>
               {[
-                { id: 'Salary School', label: 'Salary School', icon: '🏫' },
+                { id: 'Employee', label: 'Employee', icon: '👤' },
+                { id: 'Salary School', label: 'School', icon: '🏫' },
                 { id: 'TPEO', label: 'TPEO', icon: '🏛️' },
                 { id: 'DPEO', label: 'DPEO', icon: '🏢' },
                 { id: 'DPPF', label: 'DPPF', icon: '📜' },
@@ -229,13 +250,13 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setRole(r.id)}
                     style={{
-                      padding: '0.65rem 0.15rem',
+                      padding: '0.65rem 0.1rem',
                       borderRadius: '10px',
                       border: 'none',
                       background: isActive ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : 'transparent',
                       color: isActive ? '#ffffff' : '#065f46',
                       fontWeight: isActive ? 700 : 600,
-                      fontSize: '0.74rem',
+                      fontSize: '0.7rem',
                       cursor: 'pointer',
                       boxShadow: isActive ? '0 4px 12px rgba(5, 150, 105, 0.3)' : 'none',
                       transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -258,6 +279,35 @@ export default function LoginPage() {
 
           {/* Dynamic Role Option Field Slot — Fixed height slot to keep card height identical across all roles */}
           <div style={{ minHeight: '74px', marginBottom: '1.25rem' }}>
+            {role === 'Employee' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#065f46', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Teacher Code
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter 8 or 14 digit Teacher Code"
+                  value={teacherCode}
+                  onChange={(e) => setTeacherCode(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.7rem 0.85rem',
+                    borderRadius: '10px',
+                    border: '1px solid #a7f3d0',
+                    background: '#f0fdf4',
+                    color: '#064e3b',
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    outline: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onFocus={(e) => { e.target.style.borderColor = '#059669'; e.target.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.15)'; }}
+                  onBlur={(e) => { e.target.style.borderColor = '#a7f3d0'; e.target.style.boxShadow = 'none'; }}
+                />
+              </div>
+            )}
+
             {role === 'Salary School' && (
               <div>
                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#065f46', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -352,11 +402,11 @@ export default function LoginPage() {
           {/* Password Input */}
           <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#065f46', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Password
+              {role === 'Employee' ? 'Password (Date of Birth - DD-MM-YYYY)' : 'Password'}
             </label>
             <input
               type="password"
-              placeholder={`Enter password for ${role}`}
+              placeholder={role === 'Employee' ? 'Enter Date of Birth (e.g. 16-09-1980)' : `Enter password for ${role}`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -379,7 +429,12 @@ export default function LoginPage() {
               <button
                 type="button"
                 style={{ background: 'none', border: 'none', fontWeight: 700, color: '#059669', cursor: 'pointer', textDecoration: 'underline', padding: 0, fontSize: '0.72rem' }}
-                onClick={() => setPassword(getExpectedPassword())}
+                onClick={() => {
+                  setPassword(getExpectedPassword());
+                  if (role === 'Employee') {
+                    setTeacherCode('10214002621');
+                  }
+                }}
               >
                 Auto-fill ({getExpectedPassword()})
               </button>

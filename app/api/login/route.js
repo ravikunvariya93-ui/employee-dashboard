@@ -11,6 +11,39 @@ export async function POST(request) {
       return NextResponse.json({ success: false, error: 'Role and Password are required.' }, { status: 400 });
     }
 
+    if (role === 'Employee') {
+      const code = username;
+      if (!code) {
+        return NextResponse.json({ success: false, error: 'Teacher Code is required.' }, { status: 400 });
+      }
+      const cleanCode = code.trim();
+      const codeInt = parseInt(cleanCode, 10);
+      if (isNaN(codeInt)) {
+        return NextResponse.json({ success: false, error: 'Teacher Code must be a valid number.' }, { status: 400 });
+      }
+
+      const teachers = await sql`SELECT * FROM teachers WHERE teacher_code = ${codeInt}`;
+      if (teachers.length > 0) {
+        const teacher = teachers[0];
+        // Compare password with DOB (dob)
+        if (teacher.dob && teacher.dob.trim() === password.trim()) {
+          return NextResponse.json({
+            success: true,
+            user: {
+              id: teacher.id,
+              username: teacher.teacher_code.toString(),
+              name: teacher.name_english,
+              role: 'Employee',
+              teacher_id: teacher.id,
+              teacher_code: teacher.teacher_code
+            }
+          });
+        }
+      }
+      return NextResponse.json({ success: false, error: 'Invalid Teacher Code or Date of Birth.' }, { status: 401 });
+    }
+
+
     // First, check database `users` table
     try {
       let dbUsers = [];
